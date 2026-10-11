@@ -5,18 +5,37 @@ interface PageContainerProps {
   subtitle?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  breadcrumbs?: { label: string; href?: string }[];
 }
 
-export function PageContainer({ title, subtitle, actions, children }: PageContainerProps) {
+export function PageContainer({ title, subtitle, actions, children, breadcrumbs }: PageContainerProps) {
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Optional Breadcrumbs */}
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <nav className="flex items-center gap-2 text-[13px] text-[#64748B]">
+          {breadcrumbs.map((crumb, idx) => (
+            <React.Fragment key={idx}>
+              {idx > 0 && <span>/</span>}
+              {crumb.href ? (
+                <a href={crumb.href} className="hover:text-[#0F766E] transition-colors">
+                  {crumb.label}
+                </a>
+              ) : (
+                <span className="font-semibold text-[#334155]">{crumb.label}</span>
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+      )}
+
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-zinc-200/80 dark:border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">{title}</h1>
-          {subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{subtitle}</p>}
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#172554]">{title}</h1>
+          {subtitle && <p className="text-[14px] text-[#64748B] mt-1 leading-normal">{subtitle}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2.5 flex-wrap">{actions}</div>}
+        {actions && <div className="flex items-center gap-3 flex-wrap">{actions}</div>}
       </div>
 
       {/* Main Content */}
@@ -24,4 +43,3 @@ export function PageContainer({ title, subtitle, actions, children }: PageContai
     </div>
   );
 }
-

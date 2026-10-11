@@ -1,31 +1,38 @@
 import React from 'react';
 
-export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' | 'outline';
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'error' | 'info' | 'primary' | 'purple' | 'outline';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
   children: React.ReactNode;
   className?: string;
+  size?: 'sm' | 'md';
 }
 
-export function Badge({ variant = 'default', children, className = '', ...props }: BadgeProps) {
+export function Badge({ variant = 'default', size = 'md', children, className = '', ...props }: BadgeProps) {
   const variantStyles: Record<BadgeVariant, string> = {
-    default: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700',
-    success: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-    warning: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-    danger: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-800',
-    info: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400 border-sky-200 dark:border-sky-800',
-    purple: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-    outline: 'bg-transparent text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700',
+    default: 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]',
+    success: 'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]',
+    warning: 'bg-[#FFF7ED] text-[#C2410C] border-[#FFEDD5]',
+    danger: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]',
+    error: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]',
+    info: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
+    primary: 'bg-[#F0FDFA] text-[#0F766E] border-[#CCFBF1]',
+    purple: 'bg-[#FAF5FF] text-[#7E22CE] border-[#E9D5FF]',
+    outline: 'bg-transparent text-[#475569] border-[#CBD5E1]',
+  };
+
+  const sizeStyles = {
+    sm: 'px-2 py-0.5 text-[11px]',
+    md: 'px-2.5 py-1 text-[12px]',
   };
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variantStyles[variant]} ${className}`}
+      className={`inline-flex items-center font-semibold rounded-full border tracking-wide transition-colors ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
       {...props}
     >
       {children}
     </span>
   );
 }
-

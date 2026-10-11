@@ -8,7 +8,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export function Card({ children, className = '', ...props }: CardProps) {
   return (
     <div
-      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xs overflow-hidden ${className}`}
+      className={`bg-white border border-[#E2E8F0] rounded-2xl shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden transition-all duration-200 ${className}`}
       {...props}
     >
       {children}
@@ -18,7 +18,7 @@ export function Card({ children, className = '', ...props }: CardProps) {
 
 export function CardHeader({ children, className = '', ...props }: CardProps) {
   return (
-    <div className={`p-5 border-b border-zinc-100 dark:border-zinc-800/60 ${className}`} {...props}>
+    <div className={`p-5 sm:p-6 border-b border-[#F1F5F9] ${className}`} {...props}>
       {children}
     </div>
   );
@@ -26,7 +26,7 @@ export function CardHeader({ children, className = '', ...props }: CardProps) {
 
 export function CardTitle({ children, className = '', ...props }: CardProps) {
   return (
-    <h3 className={`font-semibold text-zinc-900 dark:text-zinc-100 text-base ${className}`} {...props}>
+    <h3 className={`font-bold text-[#172554] text-base sm:text-lg tracking-tight ${className}`} {...props}>
       {children}
     </h3>
   );
@@ -34,7 +34,7 @@ export function CardTitle({ children, className = '', ...props }: CardProps) {
 
 export function CardDescription({ children, className = '', ...props }: CardProps) {
   return (
-    <p className={`text-xs text-zinc-500 dark:text-zinc-400 mt-1 ${className}`} {...props}>
+    <p className={`text-[13px] text-[#64748B] mt-1 ${className}`} {...props}>
       {children}
     </p>
   );
@@ -42,9 +42,8 @@ export function CardDescription({ children, className = '', ...props }: CardProp
 
 export function CardContent({ children, className = '', ...props }: CardProps) {
   return (
-    <div className={`p-5 ${className}`} {...props}>
+    <div className={`p-5 sm:p-6 ${className}`} {...props}>
       {children}
     </div>
   );
 }
-

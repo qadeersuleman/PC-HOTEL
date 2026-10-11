@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ERPStorageProvider } from '../lib/storage/context';
+import { ToastProvider } from '../components/ui/toast';
 import { AppSidebar } from '../components/layout/app-sidebar';
 import { AppHeader } from '../components/layout/app-header';
 
@@ -27,18 +28,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+      <body className="min-h-full flex flex-col bg-[#F8FAFC] text-[#334155]">
         <ERPStorageProvider>
-          <div className="flex min-h-screen">
-            {/* 26-module sidebar */}
-            <AppSidebar />
+          <ToastProvider>
+            <div className="flex min-h-screen bg-[#F8FAFC]">
+              {/* 26-module sidebar */}
+              <AppSidebar />
 
-            {/* Main content body */}
-            <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-              <AppHeader />
-              <main className="flex-1 pb-16">{children}</main>
+              {/* Main content body */}
+              <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
+                <AppHeader />
+                <main className="flex-1 pb-16">{children}</main>
+              </div>
             </div>
-          </div>
+          </ToastProvider>
         </ERPStorageProvider>
       </body>
     </html>

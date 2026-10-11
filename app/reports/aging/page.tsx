@@ -4,15 +4,15 @@ import React, { useState, useMemo } from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { calculatePayablesAging } from '../../../lib/accounting/payable-receivable';
 import { formatCurrency, getTodayDateString } from '../../../lib/utils/formatters';
 
 export default function AgingReportsPage() {
-  const { vendors, purchases, customers, sales } = useERPStorage();
+  const { vendors, purchases, customers } = useERPStorage();
   const [activeTab, setActiveTab] = useState<'PAYABLES' | 'RECEIVABLES'>('PAYABLES');
   const [asOfDate, setAsOfDate] = useState(getTodayDateString());
 
@@ -23,47 +23,51 @@ export default function AgingReportsPage() {
   return (
     <PageContainer
       title="Payables & Receivables Aging Analysis"
-      subtitle="Track aged unpaid purchase invoices and overdue customer credit buckets"
+      subtitle="Track aged unpaid purchase bills and overdue dining receivables by 15, 30, and 60-day aging buckets"
+      breadcrumbs={[
+        { label: 'Financial Reports' },
+        { label: 'Aging Analysis' },
+      ]}
       actions={
         <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Icons.Printer size={14} />
+          <Icons.Printer size={15} />
           <span>Print Aging Schedule</span>
         </Button>
       }
     >
-      {/* Tab Switcher & Date */}
+      {/* Tab Switcher & Date Filter */}
       <Card>
         <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 p-1 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
             <button
               onClick={() => setActiveTab('PAYABLES')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              className={`px-4 py-2 text-[13px] font-semibold rounded-lg transition-all ${
                 activeTab === 'PAYABLES'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-white text-[#0F766E] shadow-2xs border border-[#E2E8F0]'
+                  : 'text-[#64748B] hover:text-[#172554]'
               }`}
             >
               Accounts Payable Aging (Suppliers)
             </button>
             <button
               onClick={() => setActiveTab('RECEIVABLES')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              className={`px-4 py-2 text-[13px] font-semibold rounded-lg transition-all ${
                 activeTab === 'RECEIVABLES'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-white text-[#0F766E] shadow-2xs border border-[#E2E8F0]'
+                  : 'text-[#64748B] hover:text-[#172554]'
               }`}
             >
               Accounts Receivable Aging (Customers)
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Aging As of:</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-semibold text-[#172554]">Aging As of:</span>
             <input
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              className="h-10 px-3 text-[13px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             />
           </div>
         </CardContent>
@@ -72,50 +76,52 @@ export default function AgingReportsPage() {
       {/* Payables Aging Table */}
       {activeTab === 'PAYABLES' ? (
         <Card>
-          <Table>
-            <TableHeader>
-              <tr>
-                <TableHead>Account No</TableHead>
-                <TableHead>Vendor Name</TableHead>
-                <TableHead className="text-right">0 - 15 Days (Current)</TableHead>
-                <TableHead className="text-right">16 - 30 Days</TableHead>
-                <TableHead className="text-right">31 - 60 Days</TableHead>
-                <TableHead className="text-right">Over 60 Days</TableHead>
-                <TableHead className="text-right">Total Outstanding</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {payablesAging.length === 0 ? (
+          {payablesAging.length === 0 ? (
+            <EmptyState
+              icon="Clock"
+              title="No Overdue Payables"
+              description="There are currently no unpaid purchase invoices or aged liabilities due to vendors."
+              actionLabel="View Purchase Bills"
+              actionHref="/purchases"
+            />
+          ) : (
+            <Table>
+              <TableHeader>
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-zinc-400 text-xs">
-                    No overdue purchase invoices found for this period.
-                  </td>
+                  <TableHead>Account No</TableHead>
+                  <TableHead>Vendor / Supplier</TableHead>
+                  <TableHead className="text-right">0 - 15 Days (Current)</TableHead>
+                  <TableHead className="text-right">16 - 30 Days</TableHead>
+                  <TableHead className="text-right">31 - 60 Days</TableHead>
+                  <TableHead className="text-right">Over 60 Days</TableHead>
+                  <TableHead className="text-right">Total Outstanding (PKR)</TableHead>
                 </tr>
-              ) : (
-                payablesAging.map((bucket) => (
+              </TableHeader>
+              <TableBody>
+                {payablesAging.map((bucket) => (
                   <TableRow key={bucket.partyId}>
-                    <TableCell className="font-mono font-bold text-xs">{bucket.accountNo}</TableCell>
-                    <TableCell className="font-semibold text-xs">{bucket.partyName}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">
+                    <TableCell className="font-mono font-bold text-[#172554] text-[13px]">{bucket.accountNo}</TableCell>
+                    <TableCell className="font-semibold text-[#172554] text-[14px]">{bucket.partyName}</TableCell>
+                    <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#047857]">
                       {bucket.current > 0 ? formatCurrency(bucket.current) : '—'}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs">
+                    <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#64748B]">
                       {bucket.days16to30 > 0 ? formatCurrency(bucket.days16to30) : '—'}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs">
+                    <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#C2410C]">
                       {bucket.days31to60 > 0 ? formatCurrency(bucket.days31to60) : '—'}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs font-bold text-rose-600">
+                    <TableCell className="text-right font-mono text-[13px] tabular-nums font-bold text-[#B91C1C]">
                       {bucket.daysOver60 > 0 ? formatCurrency(bucket.daysOver60) : '—'}
                     </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-xs text-amber-600">
+                    <TableCell className="text-right font-mono font-bold text-[14px] tabular-nums text-[#C2410C]">
                       {formatCurrency(bucket.totalOutstanding)}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
       ) : (
         <Card>
@@ -123,12 +129,12 @@ export default function AgingReportsPage() {
             <TableHeader>
               <tr>
                 <TableHead>Account No</TableHead>
-                <TableHead>Customer Name</TableHead>
+                <TableHead>Customer / Guest Name</TableHead>
                 <TableHead className="text-right">0 - 15 Days (Current)</TableHead>
                 <TableHead className="text-right">16 - 30 Days</TableHead>
                 <TableHead className="text-right">31 - 60 Days</TableHead>
                 <TableHead className="text-right">Over 60 Days</TableHead>
-                <TableHead className="text-right">Total Outstanding</TableHead>
+                <TableHead className="text-right">Total Outstanding (PKR)</TableHead>
               </tr>
             </TableHeader>
             <TableBody>
@@ -136,13 +142,13 @@ export default function AgingReportsPage() {
                 .filter((c) => c.openingBalance > 0)
                 .map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono font-bold text-xs">{c.accountNo}</TableCell>
-                    <TableCell className="font-semibold text-xs">{c.name}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{formatCurrency(c.openingBalance)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">—</TableCell>
-                    <TableCell className="text-right font-mono text-xs">—</TableCell>
-                    <TableCell className="text-right font-mono text-xs">—</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-xs text-blue-600">
+                    <TableCell className="font-mono font-bold text-[#172554] text-[13px]">{c.accountNo}</TableCell>
+                    <TableCell className="font-semibold text-[#172554] text-[14px]">{c.name}</TableCell>
+                    <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#1D4ED8]">{formatCurrency(c.openingBalance)}</TableCell>
+                    <TableCell className="text-right font-mono text-[13px] text-[#94A3B8]">—</TableCell>
+                    <TableCell className="text-right font-mono text-[13px] text-[#94A3B8]">—</TableCell>
+                    <TableCell className="text-right font-mono text-[13px] text-[#94A3B8]">—</TableCell>
+                    <TableCell className="text-right font-mono font-bold text-[14px] tabular-nums text-[#1D4ED8]">
                       {formatCurrency(c.openingBalance)}
                     </TableCell>
                   </TableRow>
@@ -154,4 +160,3 @@ export default function AgingReportsPage() {
     </PageContainer>
   );
 }
-

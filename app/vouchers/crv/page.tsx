@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
-import { Card, CardContent } from '../../../components/ui/card';
+import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Modal } from '../../../components/ui/modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { useToast } from '../../../components/ui/toast';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { formatCurrency, formatDate, getTodayDateString, round2 } from '../../../lib/utils/formatters';
@@ -14,6 +16,7 @@ import { Voucher } from '../../../types/voucher';
 
 export default function CashReceiptVouchersPage() {
   const { vouchers, customers, accounts, saveVoucher, cancelVoucher } = useERPStorage();
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form State
@@ -29,13 +32,16 @@ export default function CashReceiptVouchersPage() {
   const handleCreateCRV = async (e: React.FormEvent) => {
     e.preventDefault();
     const numericAmount = parseFloat(amount) || 0;
-    if (numericAmount <= 0) return;
+    if (numericAmount <= 0) {
+      toast.error('Validation Error', 'Receipt amount must be greater than zero.');
+      return;
+    }
 
     const selectedCust = customers.find((c) => c.id === customerId);
     const depositAccount = accounts.find((a) => a.code === depositAccountCode)!;
     const arAccount = accounts.find((a) => a.code === '100500')!;
 
-    const voucherNumber = `CRV-2026-00${crvVouchers.length + 2}`;
+    const voucherNumber = `CRV-2026-00${crvVouchers.length + 1}`;
 
     const newVoucher: Voucher = {
       id: `v-crv-${Date.now()}`,
@@ -75,92 +81,117 @@ export default function CashReceiptVouchersPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    await saveVoucher(newVoucher);
-    setIsModalOpen(false);
-    setAmount('');
-    setReferenceNo('');
+    try {
+      await saveVoucher(newVoucher);
+      toast.success('CRV Posted', `Receipt ${voucherNumber} recorded. Cash increased and receivable reduced.`);
+      setIsModalOpen(false);
+      setAmount('');
+      setReferenceNo('');
+    } catch {
+      toast.error('Error', 'Failed to save cash receipt voucher.');
+    }
+  };
+
+  const handleCancelVoucher = async (v: Voucher) => {
+    if (confirm(`Cancel ${v.voucherNumber}? This will reverse the cash intake and restore the customer receivable balance.`)) {
+      try {
+        await cancelVoucher(v.id);
+        toast.warning('CRV Cancelled', `${v.voucherNumber} has been reversed.`);
+      } catch {
+        toast.error('Error', 'Failed to cancel voucher.');
+      }
+    }
   };
 
   return (
     <PageContainer
       title="CRV — Cash Receipt Vouchers"
-      subtitle="Record cash and bank receipts from customers, banquet advances, and dining collections"
+      subtitle="Record incoming cash and bank receipts from dining customers, banquets, and event advances"
+      breadcrumbs={[
+        { label: 'Vouchers & GL', href: '/accounts/general-ledger' },
+        { label: 'Cash Receipt Vouchers (CRV)' },
+      ]}
       actions={
         <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-          <Icons.Plus size={14} />
+          <Icons.Plus size={15} />
           <span>New Receipt Voucher (CRV)</span>
         </Button>
       }
     >
       <Card>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Voucher #</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Customer / Party</TableHead>
-              <TableHead>Account Received In</TableHead>
-              <TableHead>Ref / Cheque #</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount (PKR)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {crvVouchers.length === 0 ? (
+        {crvVouchers.length === 0 ? (
+          <EmptyState
+            icon="ArrowDownLeft"
+            title="No Receipt Vouchers Recorded"
+            description="Collect customer dining tabs or banquet deposits by recording a new Cash Receipt Voucher."
+            actionLabel="Record First CRV"
+            onAction={() => setIsModalOpen(true)}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
               <tr>
-                <td colSpan={9} className="py-10 text-center text-zinc-400 text-xs">
-                  No receipt vouchers recorded.
-                </td>
+                <TableHead>Voucher #</TableHead>
+                <TableHead>Receipt Date</TableHead>
+                <TableHead>Customer / Payee</TableHead>
+                <TableHead>Account Deposited</TableHead>
+                <TableHead>Reference / Cheque</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Amount (PKR)</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </tr>
-            ) : (
-              crvVouchers.map((v) => {
+            </TableHeader>
+            <TableBody>
+              {crvVouchers.map((v) => {
                 const cust = customers.find((c) => c.id === v.partyId);
                 const debitLine = v.lines.find((l) => l.debit > 0);
 
                 return (
                   <TableRow key={v.id}>
-                    <TableCell className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                    <TableCell className="font-mono font-bold text-[#172554] text-[13px]">
                       {v.voucherNumber}
                     </TableCell>
-                    <TableCell className="text-xs">{formatDate(v.date)}</TableCell>
-                    <TableCell className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {cust?.name || 'Customer'}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <Badge variant="outline">{debitLine?.accountName || 'Cash in Hand'}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-500">{v.referenceNo || '—'}</TableCell>
-                    <TableCell className="text-xs text-zinc-600 dark:text-zinc-300 max-w-[200px] truncate">
-                      {v.description}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(v.amount)}
+                    <TableCell className="text-[13px] text-[#64748B] font-mono">{formatDate(v.date)}</TableCell>
+                    <TableCell className="font-semibold text-[#172554] text-[14px]">
+                      {cust?.name || 'Walk-in Customer'}
                     </TableCell>
                     <TableCell>
-                      {v.isPosted ? <Badge variant="success">Posted to GL</Badge> : <Badge variant="outline">Cancelled</Badge>}
+                      <Badge variant="outline">{debitLine?.accountName || 'Cash in Hand'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-[13px] font-mono text-[#64748B]">{v.referenceNo || '—'}</TableCell>
+                    <TableCell className="text-[13px] text-[#334155] max-w-[220px] truncate">
+                      {v.description}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-bold text-[#047857] text-[14px] tabular-nums">
+                      {formatCurrency(v.amount)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {v.isPosted ? (
+                        <Badge variant="success">Posted to GL</Badge>
+                      ) : (
+                        <Badge variant="error">Cancelled</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {v.isPosted && (
-                        <button
-                          onClick={() => {
-                            if (confirm(`Cancel ${v.voucherNumber}? This will reverse the cash intake and restore the customer's receivable balance.`)) {
-                              cancelVoucher(v.id);
-                            }
-                          }}
-                          className="text-xs text-rose-600 hover:underline"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelVoucher(v)}
+                          className="text-[#B91C1C] hover:text-[#991B1B] hover:bg-[#FEF2F2]"
                         >
-                          Cancel
-                        </button>
+                          <Icons.Trash size={13} />
+                          <span>Reverse</span>
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>
                 );
-              })
-            )}
-          </TableBody>
-        </Table>
+              })}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
       {/* Add CRV Modal */}
@@ -173,7 +204,7 @@ export default function CashReceiptVouchersPage() {
         <form onSubmit={handleCreateCRV} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Receipt Date
               </label>
               <input
@@ -181,17 +212,17 @@ export default function CashReceiptVouchersPage() {
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Deposit Into
               </label>
               <select
                 value={depositAccountCode}
                 onChange={(e) => setDepositAccountCode(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               >
                 <option value="100100">100100 — Cash in Hand (Counter)</option>
                 <option value="100110">100110 — Meezan Bank Operating A/C</option>
@@ -200,26 +231,30 @@ export default function CashReceiptVouchersPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+            <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
               Received From Customer
             </label>
             <select
               required
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.accountNo}] {c.name}
-                </option>
-              ))}
+              {customers.length === 0 ? (
+                <option value="">No customers found</option>
+              ) : (
+                customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    [{c.accountNo}] {c.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Amount Received (PKR)
               </label>
               <input
@@ -228,11 +263,11 @@ export default function CashReceiptVouchersPage() {
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold"
+                className="w-full h-11 px-3 text-[14px] font-bold font-mono rounded-xl border border-[#E2E8F0] bg-white text-[#172554] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Receipt / Cheque / Online Ref
               </label>
               <input
@@ -240,30 +275,30 @@ export default function CashReceiptVouchersPage() {
                 placeholder="e.g. REC-102 or Online TXN"
                 value={referenceNo}
                 onChange={(e) => setReferenceNo(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+            <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
               Description / Narration
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Cleared bill for Banquet event"
-              className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              placeholder="e.g. Cleared dining tab for Banquet event"
+              className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#E2E8F0]">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="sm">
-              Save & Post Voucher
+              Save & Post CRV
             </Button>
           </div>
         </form>
@@ -271,4 +306,3 @@ export default function CashReceiptVouchersPage() {
     </PageContainer>
   );
 }
-

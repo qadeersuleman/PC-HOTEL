@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import { PageContainer } from '../../components/layout/page-container';
-import { Card, CardContent } from '../../components/ui/card';
+import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Modal } from '../../components/ui/modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table';
+import { EmptyState } from '../../components/ui/empty-state';
+import { useToast } from '../../components/ui/toast';
 import { Icons } from '../../components/ui/icons';
 import { useERPStorage } from '../../lib/storage/context';
 import { formatCurrency, formatDate, getTodayDateString, round2 } from '../../lib/utils/formatters';
@@ -14,6 +16,7 @@ import { SalesEntry, SalesChannel, SalesPaymentMethod } from '../../types/sales'
 
 export default function SalesPage() {
   const { sales, customers, saveSales } = useERPStorage();
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form State
@@ -29,7 +32,10 @@ export default function SalesPage() {
 
   const handleCreateSales = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (netSales <= 0) return;
+    if (netSales <= 0) {
+      toast.error('Validation Error', 'Net sales revenue must be greater than zero.');
+      return;
+    }
 
     const selectedCust = customers.find((c) => c.id === customerId);
 
@@ -39,7 +45,7 @@ export default function SalesPage() {
 
     const newSale: SalesEntry = {
       id: `sal-${Date.now()}`,
-      invoiceNumber: `SAL-2026-00${sales.length + 3}`,
+      invoiceNumber: `SAL-2026-00${sales.length + 1}`,
       date,
       channel,
       grossSales: parseFloat(grossSales) || 0,
@@ -58,82 +64,93 @@ export default function SalesPage() {
       createdAt: new Date().toISOString(),
     };
 
-    await saveSales(newSale);
-    setIsModalOpen(false);
+    try {
+      await saveSales(newSale);
+      toast.success('Sales Entry Recorded', `Revenue ${newSale.invoiceNumber} posted (${formatCurrency(netSales)}).`);
+      setIsModalOpen(false);
+    } catch {
+      toast.error('Error', 'Failed to save sales entry.');
+    }
   };
 
   return (
     <PageContainer
       title="Daily Sales Entry"
-      subtitle="Record restaurant revenue by Dine-in, Takeaway, Delivery, and Banquet events"
+      subtitle="Record restaurant revenue by Dine-in, Takeaway parcel counter, Home Delivery, and Banquet events"
+      breadcrumbs={[
+        { label: 'Revenue' },
+        { label: 'Daily Sales' },
+      ]}
       actions={
         <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-          <Icons.Plus size={14} />
+          <Icons.Plus size={15} />
           <span>Record Daily Sales</span>
         </Button>
       }
     >
       <Card>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Bill #</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead className="text-right">Gross Sales</TableHead>
-              <TableHead className="text-right">Discount</TableHead>
-              <TableHead className="text-right">Net Revenue</TableHead>
-              <TableHead>Payment Method</TableHead>
-              <TableHead>Account Affected</TableHead>
-              <TableHead>Status</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {sales.length === 0 ? (
+        {sales.length === 0 ? (
+          <EmptyState
+            icon="DollarSign"
+            title="No Sales Entries Recorded"
+            description="Record your first daily sales report to credit food revenue and debit cash/bank accounts."
+            actionLabel="Record Today's Sales"
+            onAction={() => setIsModalOpen(true)}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
               <tr>
-                <td colSpan={9} className="py-10 text-center text-zinc-400 text-xs">
-                  No sales entries recorded.
-                </td>
+                <TableHead>Bill #</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Channel</TableHead>
+                <TableHead className="text-right">Gross Sales</TableHead>
+                <TableHead className="text-right">Discount</TableHead>
+                <TableHead className="text-right">Net Revenue</TableHead>
+                <TableHead>Settlement</TableHead>
+                <TableHead>Account Affected</TableHead>
+                <TableHead className="text-center">Status</TableHead>
               </tr>
-            ) : (
-              sales.map((s) => (
+            </TableHeader>
+            <TableBody>
+              {sales.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                  <TableCell className="font-mono font-bold text-[#172554] text-[13px]">
                     {s.invoiceNumber}
                   </TableCell>
-                  <TableCell className="text-xs">{formatDate(s.date)}</TableCell>
+                  <TableCell className="text-[13px] text-[#64748B] font-mono">{formatDate(s.date)}</TableCell>
                   <TableCell>
                     <Badge variant={s.channel === 'DINE_IN' ? 'success' : s.channel === 'TAKEAWAY' ? 'info' : 'purple'}>
                       {s.channel.replace('_', ' ')}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs text-zinc-500">
+                  <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#64748B]">
                     {formatCurrency(s.grossSales)}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs text-rose-500">
+                  <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#B91C1C]">
                     {s.discount > 0 ? `-${formatCurrency(s.discount)}` : '—'}
                   </TableCell>
-                  <TableCell className="text-right font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                  <TableCell className="text-right font-mono font-bold text-[14px] tabular-nums text-[#047857]">
                     {formatCurrency(s.netSales)}
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-semibold">{s.paymentMethod}</span>
+                    <span className="text-[13px] font-semibold text-[#334155]">{s.paymentMethod}</span>
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {s.paymentMethod === 'CASH' && <span className="text-zinc-600">Cash in Hand (100100)</span>}
-                    {s.paymentMethod === 'CARD' && <span className="text-zinc-600">Meezan Bank (100110)</span>}
+                  <TableCell className="text-[13px]">
+                    {s.paymentMethod === 'CASH' && <span className="text-[#047857] font-medium">Cash in Hand (100100)</span>}
+                    {s.paymentMethod === 'CARD' && <span className="text-[#1D4ED8] font-medium">Meezan Bank (100110)</span>}
                     {s.paymentMethod === 'CREDIT' && (
-                      <span className="text-blue-600 font-medium">AR: {s.customerName || 'Customer'}</span>
+                      <span className="text-[#C2410C] font-medium">AR: {s.customerName || 'Customer'}</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Badge variant="success">Posted to GL</Badge>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
       {/* Record Sales Modal */}
@@ -146,7 +163,7 @@ export default function SalesPage() {
         <form onSubmit={handleCreateSales} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Date
               </label>
               <input
@@ -154,17 +171,17 @@ export default function SalesPage() {
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Sales Channel
               </label>
               <select
                 value={channel}
                 onChange={(e) => setChannel(e.target.value as SalesChannel)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               >
                 <option value="DINE_IN">Dine-in (Restaurant Floor)</option>
                 <option value="TAKEAWAY">Takeaway / Parcel Counter</option>
@@ -176,7 +193,7 @@ export default function SalesPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Gross Food Sales (PKR)
               </label>
               <input
@@ -185,11 +202,11 @@ export default function SalesPage() {
                 required
                 value={grossSales}
                 onChange={(e) => setGrossSales(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-bold"
+                className="w-full h-11 px-3 text-[14px] font-bold font-mono rounded-xl border border-[#E2E8F0] bg-white text-[#172554] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Customer Discount (PKR)
               </label>
               <input
@@ -197,25 +214,25 @@ export default function SalesPage() {
                 step="0.01"
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] font-mono rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-xs">
-            <span className="font-semibold text-emerald-800 dark:text-emerald-300">Net Sales Revenue:</span>
-            <span className="font-bold text-sm text-emerald-700 dark:text-emerald-400">{formatCurrency(netSales)}</span>
+          <div className="p-4 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0] flex justify-between items-center text-[13px]">
+            <span className="font-semibold text-[#065F46]">Net Sales Revenue (Credited to #400100):</span>
+            <span className="font-bold font-mono text-base text-[#047857]">{formatCurrency(netSales)}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Settlement / Payment Method
               </label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as SalesPaymentMethod)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               >
                 <option value="CASH">Cash in Hand (Counter)</option>
                 <option value="CARD">Card POS / Bank Account</option>
@@ -225,14 +242,14 @@ export default function SalesPage() {
 
             {paymentMethod === 'CREDIT' ? (
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                   Credit Customer
                 </label>
                 <select
                   required
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                  className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
                 >
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -243,21 +260,21 @@ export default function SalesPage() {
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Cash Register / Register Ref
+                <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
+                  Register / Reference Note
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Counter Register #1"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                  className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
                 />
               </div>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#E2E8F0]">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
@@ -270,4 +287,3 @@ export default function SalesPage() {
     </PageContainer>
   );
 }
-

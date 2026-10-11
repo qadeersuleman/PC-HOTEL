@@ -1,7 +1,7 @@
 import React from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -20,20 +20,21 @@ export function Button({
   isLoading,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none cursor-pointer';
+  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-150 focus:outline-none focus:ring-4 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:scale-[0.99]';
 
   const sizeStyles: Record<ButtonSize, string> = {
-    sm: 'text-xs px-2.5 py-1.5 gap-1.5',
-    md: 'text-sm px-3.5 py-2 gap-2',
-    lg: 'text-base px-5 py-2.5 gap-2.5',
+    sm: 'text-xs h-9 px-3 gap-1.5',
+    md: 'text-[14px] sm:text-[15px] h-11 sm:h-12 px-5 gap-2',
+    lg: 'text-base h-13 px-6 gap-2.5',
+    icon: 'h-10 w-10 min-w-10 p-0 text-sm',
   };
 
   const variantStyles: Record<ButtonVariant, string> = {
-    primary: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 shadow-xs',
-    secondary: 'bg-zinc-800 text-white hover:bg-zinc-900 focus:ring-zinc-500 shadow-xs dark:bg-zinc-700 dark:hover:bg-zinc-600',
-    outline: 'border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 focus:ring-zinc-400',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500 shadow-xs',
-    ghost: 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800',
+    primary: 'bg-[#0F766E] text-white hover:bg-[#115E59] focus:ring-[#0F766E]/20 shadow-xs border border-[#0F766E]',
+    secondary: 'bg-[#F1F5F9] text-[#1E293B] hover:bg-[#E2E8F0] focus:ring-slate-300 border border-[#E2E8F0]',
+    outline: 'border border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC] hover:border-[#94A3B8] focus:ring-slate-300 bg-white',
+    danger: 'bg-[#B91C1C] text-white hover:bg-[#991B1B] focus:ring-[#B91C1C]/20 shadow-xs border border-[#B91C1C]',
+    ghost: 'text-[#64748B] hover:text-[#0F766E] hover:bg-[#F0FDFA] focus:ring-[#0F766E]/10',
   };
 
   return (
@@ -49,4 +50,3 @@ export function Button({
     </button>
   );
 }
-

@@ -2,8 +2,8 @@ import React from 'react';
 
 export function Table({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="w-full overflow-x-auto">
-      <table className={`w-full text-left text-sm text-zinc-600 dark:text-zinc-300 ${className}`}>
+    <div className="w-full overflow-x-auto rounded-2xl border border-[#E2E8F0] bg-white shadow-2xs">
+      <table className={`w-full text-left text-[14px] sm:text-[15px] text-[#334155] ${className}`}>
         {children}
       </table>
     </div>
@@ -12,7 +12,7 @@ export function Table({ children, className = '' }: { children: React.ReactNode;
 
 export function TableHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <thead className={`bg-zinc-50 dark:bg-zinc-800/60 text-xs uppercase font-medium text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800 ${className}`}>
+    <thead className={`bg-[#F8FAFC] text-[12px] uppercase font-bold text-[#64748B] tracking-wider border-b border-[#E2E8F0] ${className}`}>
       {children}
     </thead>
   );
@@ -20,7 +20,7 @@ export function TableHeader({ children, className = '' }: { children: React.Reac
 
 export function TableBody({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <tbody className={`divide-y divide-zinc-100 dark:divide-zinc-800/60 ${className}`}>
+    <tbody className={`divide-y divide-[#F1F5F9] ${className}`}>
       {children}
     </tbody>
   );
@@ -30,7 +30,7 @@ export function TableRow({ children, className = '', onClick }: { children: Reac
   return (
     <tr
       onClick={onClick}
-      className={`hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`h-[56px] hover:bg-[#F8FAFC]/80 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       {children}
     </tr>
@@ -39,7 +39,7 @@ export function TableRow({ children, className = '', onClick }: { children: Reac
 
 export function TableHead({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-3 font-semibold ${className}`}>
+    <th className={`px-5 py-3.5 font-bold whitespace-nowrap ${className}`}>
       {children}
     </th>
   );
@@ -47,9 +47,8 @@ export function TableHead({ children, className = '' }: { children: React.ReactN
 
 export function TableCell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <td className={`px-4 py-3.5 align-middle ${className}`}>
+    <td className={`px-5 py-4 align-middle whitespace-nowrap ${className}`}>
       {children}
     </td>
   );
 }
-

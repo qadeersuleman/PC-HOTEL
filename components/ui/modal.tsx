@@ -44,31 +44,31 @@ export function Modal({
       <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
         {/* Backdrop */}
         <div
-          className="fixed inset-0 bg-zinc-950/50 backdrop-blur-xs transition-opacity animate-fade-in"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
           onClick={onClose}
         />
 
         {/* Modal dialog */}
         <div
-          className={`relative transform overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 text-left shadow-2xl transition-all sm:my-8 w-full ${maxWidthClasses[maxWidth]} border border-zinc-200 dark:border-zinc-800`}
+          className={`relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full ${maxWidthClasses[maxWidth]} border border-[#E2E8F0]`}
         >
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 p-5">
+          <div className="flex items-center justify-between border-b border-[#F1F5F9] p-6">
             <div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
-              {description && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>}
+              <h3 className="text-xl font-bold text-[#172554] tracking-tight">{title}</h3>
+              {description && <p className="text-[13px] text-[#64748B] mt-1">{description}</p>}
             </div>
             <button
               onClick={onClose}
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-xl text-[#64748B] hover:text-[#172554] hover:bg-[#F8FAFC] transition-colors"
+              aria-label="Close dialog"
             >
-              <Icons.X size={18} />
+              <Icons.X size={20} />
             </button>
           </div>
 
-          <div className="p-6 max-h-[80vh] overflow-y-auto">{children}</div>
+          <div className="p-6">{children}</div>
         </div>
       </div>
     </div>
   );
 }
-

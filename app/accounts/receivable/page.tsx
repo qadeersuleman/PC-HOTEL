@@ -7,6 +7,7 @@ import { Card, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { formatCurrency } from '../../../lib/utils/formatters';
@@ -36,16 +37,20 @@ export default function AccountsReceivablePage() {
   return (
     <PageContainer
       title="Accounts Receivable & Advances"
-      subtitle="GT Road Cafe Taj — Customer credit ledgers, staff advances, and supplier advance balances"
+      subtitle="Guest dining credit ledgers, banquets, staff receivables, and vendor advance prepayments"
+      breadcrumbs={[
+        { label: 'Financial Accounts', href: '/accounts/chart-of-accounts' },
+        { label: 'Accounts Receivable' },
+      ]}
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Icons.Printer size={14} />
-            <span>Print Statement</span>
+            <Icons.Printer size={15} />
+            <span>Print Report</span>
           </Button>
           <Link href="/vouchers/crv">
             <Button variant="primary" size="sm">
-              <Icons.Plus size={14} />
+              <Icons.Plus size={15} />
               <span>Record Receipt (CRV)</span>
             </Button>
           </Link>
@@ -53,66 +58,87 @@ export default function AccountsReceivablePage() {
       }
     >
       {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Customer Accounts Receivable</span>
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-            {formatCurrency(customerBalances.totalReceivable)}
-          </p>
-          <p className="text-[11px] text-zinc-400 mt-1">Guest & Corporate receivables (Account 100500)</p>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Customer Receivables
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#1D4ED8]">
+              {formatCurrency(customerBalances.totalReceivable)}
+            </p>
+            <p className="text-[13px] text-[#64748B] mt-1.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#1D4ED8]" />
+              <span>Guest & Corporate tabs (Account 100500)</span>
+            </p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Vendor Advances (Supplier Debit)</span>
-          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-            {formatCurrency(vendorBalances.totalAdvances)}
-          </p>
-          <p className="text-[11px] text-zinc-400 mt-1">Excess payments / advance deposits with vendors</p>
-        </Card>
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Vendor Advances (Deposits)
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#0F766E]">
+              {formatCurrency(vendorBalances.totalAdvances)}
+            </p>
+            <p className="text-[13px] text-[#64748B] mt-1.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#0F766E]" />
+              <span>Supplier advance prepayments (Account 100700)</span>
+            </p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Consolidated Debit Assets</span>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            {formatCurrency(combinedTotal)}
-          </p>
-          <p className="text-[11px] text-zinc-400 mt-1">Total debit balances across all parties</p>
-        </Card>
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Total Debit Receivables
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#172554]">
+              {formatCurrency(combinedTotal)}
+            </p>
+            <p className="text-[13px] text-[#64748B] mt-1.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#047857]" />
+              <span>Consolidated asset balance</span>
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Switcher & Search */}
+      {/* Tab Switcher & Search Bar */}
       <Card>
-        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2 p-1 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
             <button
               onClick={() => setActiveTab('SEPARATED')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              className={`px-4 py-2 text-[13px] font-semibold rounded-lg transition-all ${
                 activeTab === 'SEPARATED'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-white text-[#0F766E] shadow-2xs border border-[#E2E8F0]'
+                  : 'text-[#64748B] hover:text-[#172554]'
               }`}
             >
-              Classified View (GAAP Standards)
+              Classified View (GAAP)
             </button>
             <button
               onClick={() => setActiveTab('CONSOLIDATED')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              className={`px-4 py-2 text-[13px] font-semibold rounded-lg transition-all ${
                 activeTab === 'CONSOLIDATED'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-white text-[#0F766E] shadow-2xs border border-[#E2E8F0]'
+                  : 'text-[#64748B] hover:text-[#172554]'
               }`}
             >
-              Consolidated Statement (Hotel Legacy Format)
+              Consolidated Statement
             </button>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+          <div className="relative w-full sm:w-80">
+            <Icons.Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
             <input
               type="text"
-              placeholder="Search accounts..."
+              placeholder="Search debtor accounts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full h-11 pl-10 pr-4 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] transition-all"
             />
           </div>
         </CardContent>
@@ -121,116 +147,142 @@ export default function AccountsReceivablePage() {
       {/* Render Based on Tab */}
       {activeTab === 'SEPARATED' ? (
         <div className="space-y-6">
-          {/* Section 1: Real Customer Receivables */}
+          {/* Section 1: Customer Receivables */}
           <Card>
-            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+            <div className="p-5 border-b border-[#E2E8F0] flex justify-between items-center bg-[#F8FAFC]/50">
               <div>
-                <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
-                  Customer & Employee Receivables
+                <h3 className="font-bold text-base text-[#172554]">
+                  Customer & Guest Receivables
                 </h3>
-                <p className="text-xs text-zinc-400">Credit extended to dining guests, banquets, and staff</p>
+                <p className="text-[13px] text-[#64748B]">Credit extended for dining tabs, banquets, and staff accounts</p>
               </div>
-              <Badge variant="info">Asset Account 100500</Badge>
+              <Badge variant="info">Asset Account #100500</Badge>
             </div>
-            <Table>
-              <TableHeader>
-                <tr>
-                  <TableHead>Account No</TableHead>
-                  <TableHead>Customer Name</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Receivable Amount</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((cust) => (
-                  <TableRow key={cust.customerId}>
-                    <TableCell className="font-mono font-bold">{cust.accountNo}</TableCell>
-                    <TableCell>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{cust.name}</p>
-                      <p className="text-[11px] text-zinc-400">{cust.category}</p>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs">{formatCurrency(cust.totalDebit)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{formatCurrency(cust.totalCredit)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">
-                      {formatCurrency(cust.netReceivable)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        href={`/accounts/customer-ledger?customerId=${cust.customerId}`}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold"
-                      >
-                        View Ledger
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-between items-center text-xs font-bold">
-              <span>Total Customer Receivables:</span>
-              <span className="text-blue-600 dark:text-blue-400">{formatCurrency(customerBalances.totalReceivable)}</span>
-            </div>
+            
+            {filteredCustomers.length === 0 ? (
+              <EmptyState
+                icon="UserCheck"
+                title="No Customer Receivables"
+                description="There are currently no outstanding debit balances on customer accounts."
+                actionLabel="New Sales Entry"
+                actionHref="/sales"
+              />
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <TableHead>Account No</TableHead>
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead className="text-right">Debit (Tabs)</TableHead>
+                      <TableHead className="text-right">Credit (Receipts)</TableHead>
+                      <TableHead className="text-right">Receivable Amount</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomers.map((cust) => (
+                      <TableRow key={cust.customerId}>
+                        <TableCell className="font-mono font-bold text-[#172554] text-[13px]">{cust.accountNo}</TableCell>
+                        <TableCell>
+                          <p className="font-semibold text-[#172554] text-[14px]">{cust.name}</p>
+                          <p className="text-[12px] text-[#64748B]">{cust.category}</p>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#1D4ED8]">{formatCurrency(cust.totalDebit)}</TableCell>
+                        <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#64748B]">{formatCurrency(cust.totalCredit)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold text-[#1D4ED8] text-[14px] tabular-nums">
+                          {formatCurrency(cust.netReceivable)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/accounts/customer-ledger?customerId=${cust.customerId}`}>
+                            <Button variant="outline" size="sm">
+                              <Icons.BookOpen size={13} />
+                              <span>Ledger</span>
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-4 border-t border-[#E2E8F0] bg-[#F8FAFC] flex justify-between items-center text-[13px] font-bold text-[#334155]">
+                  <span>Total Customer Receivables:</span>
+                  <span className="text-[#1D4ED8] font-mono text-base tabular-nums">{formatCurrency(customerBalances.totalReceivable)}</span>
+                </div>
+              </>
+            )}
           </Card>
 
           {/* Section 2: Vendor Advances */}
           <Card>
-            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+            <div className="p-5 border-b border-[#E2E8F0] flex justify-between items-center bg-[#F8FAFC]/50">
               <div>
-                <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
+                <h3 className="font-bold text-base text-[#172554]">
                   Vendor Advances (Supplier Debit Balances)
                 </h3>
-                <p className="text-xs text-zinc-400">
-                  Prepayments, security deposits, and overpayments held with vendors
+                <p className="text-[13px] text-[#64748B]">
+                  Prepayments, security deposits, and overpayments held with food suppliers
                 </p>
               </div>
-              <Badge variant="purple">Asset Account 100700</Badge>
+              <Badge variant="purple">Asset Account #100700</Badge>
             </div>
-            <Table>
-              <TableHeader>
-                <tr>
-                  <TableHead>Account No</TableHead>
-                  <TableHead>Vendor Name</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Advance Amount</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {filteredVendorAdvances.map((ven) => (
-                  <TableRow key={ven.vendorId}>
-                    <TableCell className="font-mono font-bold">{ven.accountNo}</TableCell>
-                    <TableCell>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{ven.name}</p>
-                      <p className="text-[11px] text-zinc-400">{ven.category}</p>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs">{formatCurrency(ven.totalDebit)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{formatCurrency(ven.totalCredit)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-purple-600 dark:text-purple-400 text-sm">
-                      {formatCurrency(ven.advanceAmount)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        href={`/accounts/vendor-ledger?vendorId=${ven.vendorId}`}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold"
-                      >
-                        View Ledger
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-between items-center text-xs font-bold">
-              <span>Total Vendor Advances:</span>
-              <span className="text-purple-600 dark:text-purple-400">{formatCurrency(vendorBalances.totalAdvances)}</span>
-            </div>
+
+            {filteredVendorAdvances.length === 0 ? (
+              <EmptyState
+                icon="Users"
+                title="No Vendor Advances"
+                description="There are currently no supplier advance balances on file."
+                actionLabel="Create Payment Voucher"
+                actionHref="/vouchers/cpv"
+              />
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <TableHead>Account No</TableHead>
+                      <TableHead>Vendor Name</TableHead>
+                      <TableHead className="text-right">Debit (Paid)</TableHead>
+                      <TableHead className="text-right">Credit (Bills)</TableHead>
+                      <TableHead className="text-right">Advance Amount</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredVendorAdvances.map((ven) => (
+                      <TableRow key={ven.vendorId}>
+                        <TableCell className="font-mono font-bold text-[#172554] text-[13px]">{ven.accountNo}</TableCell>
+                        <TableCell>
+                          <p className="font-semibold text-[#172554] text-[14px]">{ven.name}</p>
+                          <p className="text-[12px] text-[#64748B]">{ven.category}</p>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#047857]">{formatCurrency(ven.totalDebit)}</TableCell>
+                        <TableCell className="text-right font-mono text-[13px] tabular-nums text-[#64748B]">{formatCurrency(ven.totalCredit)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold text-[#0F766E] text-[14px] tabular-nums">
+                          {formatCurrency(ven.advanceAmount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/accounts/vendor-ledger?vendorId=${ven.vendorId}`}>
+                            <Button variant="outline" size="sm">
+                              <Icons.BookOpen size={13} />
+                              <span>Ledger</span>
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-4 border-t border-[#E2E8F0] bg-[#F8FAFC] flex justify-between items-center text-[13px] font-bold text-[#334155]">
+                  <span>Total Vendor Advances:</span>
+                  <span className="text-[#0F766E] font-mono text-base tabular-nums">{formatCurrency(vendorBalances.totalAdvances)}</span>
+                </div>
+              </>
+            )}
           </Card>
         </div>
       ) : (
-        /* Consolidated View matching Image 4 */
+        /* Consolidated View */
         <Card>
           <Table>
             <TableHeader>
@@ -245,27 +297,27 @@ export default function AccountsReceivablePage() {
             <TableBody>
               {filteredCustomers.map((c) => (
                 <TableRow key={c.customerId}>
-                  <TableCell className="font-mono font-bold">{c.accountNo}</TableCell>
-                  <TableCell className="font-semibold">{c.name}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatCurrency(c.totalDebit)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatCurrency(c.totalCredit)}</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-xs">{formatCurrency(c.netReceivable)}</TableCell>
+                  <TableCell className="font-mono font-bold text-[#172554]">{c.accountNo}</TableCell>
+                  <TableCell className="font-semibold text-[#172554]">{c.name}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#1D4ED8]">{formatCurrency(c.totalDebit)}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#64748B]">{formatCurrency(c.totalCredit)}</TableCell>
+                  <TableCell className="text-right font-mono font-bold text-[14px] text-[#1D4ED8]">{formatCurrency(c.netReceivable)}</TableCell>
                 </TableRow>
               ))}
               {filteredVendorAdvances.map((v) => (
                 <TableRow key={v.vendorId}>
-                  <TableCell className="font-mono font-bold">{v.accountNo}</TableCell>
-                  <TableCell className="font-semibold">{v.name}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatCurrency(v.totalDebit)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatCurrency(v.totalCredit)}</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-xs">{formatCurrency(v.advanceAmount)}</TableCell>
+                  <TableCell className="font-mono font-bold text-[#172554]">{v.accountNo}</TableCell>
+                  <TableCell className="font-semibold text-[#172554]">{v.name}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#047857]">{formatCurrency(v.totalDebit)}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#64748B]">{formatCurrency(v.totalCredit)}</TableCell>
+                  <TableCell className="text-right font-mono font-bold text-[14px] text-[#0F766E]">{formatCurrency(v.advanceAmount)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-between items-center text-xs font-bold">
-            <span>Total Amount:</span>
-            <span className="text-emerald-600 dark:text-emerald-400 text-sm">
+          <div className="p-4 border-t border-[#E2E8F0] bg-[#F8FAFC] flex justify-between items-center text-[13px] font-bold text-[#334155]">
+            <span>Total Consolidated Debit Receivables:</span>
+            <span className="text-[#047857] font-mono text-base tabular-nums">
               {formatCurrency(combinedTotal)}
             </span>
           </div>
@@ -274,4 +326,3 @@ export default function AccountsReceivablePage() {
     </PageContainer>
   );
 }
-

@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { generateBalanceSheet } from '../../../lib/accounting/financial-statements';
@@ -21,74 +20,80 @@ export default function BalanceSheetPage() {
   return (
     <PageContainer
       title="Balance Sheet (Financial Position)"
-      subtitle="GT Road Cafe Taj — Statement of Assets, Liabilities, and Owner's Equity"
+      subtitle="Statement of Assets, Liabilities, and Owner's Equity for GT Road Cafe Taj"
+      breadcrumbs={[
+        { label: 'Financial Reports' },
+        { label: 'Balance Sheet' },
+      ]}
       actions={
         <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Icons.Printer size={14} />
+          <Icons.Printer size={15} />
           <span>Print Balance Sheet</span>
         </Button>
       }
     >
       {/* Date Filter & Status Banner */}
       <Card>
-        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">As of Date:</span>
+        <CardContent className="p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-semibold text-[#172554]">As of Effective Date:</span>
             <input
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              className="h-10 px-3 text-[13px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             />
           </div>
 
           <div>
             {balanceSheet.isBalanced ? (
-              <Badge variant="success" className="px-3 py-1 text-xs">
-                ✓ Balance Sheet Verified (Assets = Liabilities + Equity)
-              </Badge>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]">
+                <Icons.CheckCircle size={15} className="text-[#047857]" />
+                <span>Accounting Equation Balanced (Assets = Liabilities + Equity)</span>
+              </span>
             ) : (
-              <Badge variant="danger" className="px-3 py-1 text-xs">
-                ⚠ Equation Discrepancy: {formatCurrency(balanceSheet.difference)}
-              </Badge>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]">
+                <Icons.AlertTriangle size={15} className="text-[#B91C1C]" />
+                <span>Equation Discrepancy: {formatCurrency(balanceSheet.difference)}</span>
+              </span>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Side-by-side or stacked Assets vs Liabilities & Equity */}
+      {/* Side-by-side Assets vs Liabilities & Equity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ASSETS SECTION */}
         <Card>
-          <CardHeader className="bg-sky-50/50 dark:bg-sky-950/20 border-b border-sky-100 dark:border-sky-900/40">
+          <CardHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0] p-6">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sky-950 dark:text-sky-200">TOTAL ASSETS</CardTitle>
-              <span className="font-mono font-bold text-lg text-sky-700 dark:text-sky-300">
+              <CardTitle className="text-base font-bold text-[#172554]">TOTAL ASSETS</CardTitle>
+              <span className="font-mono font-bold text-xl text-[#0F766E]">
                 {formatCurrency(balanceSheet.assets.totalAssets)}
               </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-5">
-            <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-              Current Assets
+          <CardContent className="space-y-5 p-6">
+            <h4 className="text-[12px] font-bold text-[#64748B] uppercase tracking-wider">
+              Current & Liquid Assets
             </h4>
-            <div className="space-y-2.5 text-xs">
+            <div className="space-y-2.5 text-[13px]">
               {balanceSheet.assets.currentAssets.map((asset, idx) => (
-                <div key={idx} className="flex justify-between p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800">
+                <div key={idx} className="flex justify-between p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                   <div>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">{asset.accountName}</span>
-                    <span className="font-mono text-zinc-400 ml-2">({asset.code})</span>
+                    <span className="font-semibold text-[#172554]">{asset.accountName}</span>
+                    <span className="font-mono text-[#64748B] ml-2 text-[12px]">({asset.code})</span>
                   </div>
-                  <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                  <span className="font-mono font-bold text-[#172554]">
                     {formatCurrency(asset.amount)}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center font-bold text-sm">
-              <span>Total Current Assets:</span>
-              <span className="font-mono text-sky-600 dark:text-sky-400">
+            <div className="pt-4 border-t border-[#E2E8F0] flex justify-between items-center font-bold text-[14px]">
+              <span className="text-[#334155]">Total Current Assets:</span>
+              <span className="font-mono text-base text-[#0F766E]">
                 {formatCurrency(balanceSheet.assets.totalCurrentAssets)}
               </span>
             </div>
@@ -97,73 +102,73 @@ export default function BalanceSheetPage() {
 
         {/* LIABILITIES & EQUITY SECTION */}
         <Card>
-          <CardHeader className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900/40">
+          <CardHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0] p-6">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-amber-950 dark:text-amber-200">
-                LIABILITIES &amp; OWNER&apos;S EQUITY
+              <CardTitle className="text-base font-bold text-[#172554]">
+                TOTAL LIABILITIES &amp; EQUITY
               </CardTitle>
-              <span className="font-mono font-bold text-lg text-amber-700 dark:text-amber-300">
+              <span className="font-mono font-bold text-xl text-[#172554]">
                 {formatCurrency(balanceSheet.liabilities.totalLiabilities + balanceSheet.equity.totalEquity)}
               </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6 pt-5">
+          <CardContent className="space-y-6 p-6">
             {/* Liabilities */}
             <div>
-              <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
-                Current Liabilities
+              <h4 className="text-[12px] font-bold text-[#64748B] uppercase tracking-wider mb-2.5">
+                Current Liabilities (Payables)
               </h4>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2 text-[13px]">
                 {balanceSheet.liabilities.currentLiabilities.map((liab, idx) => (
-                  <div key={idx} className="flex justify-between p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800">
+                  <div key={idx} className="flex justify-between p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                     <div>
-                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">{liab.accountName}</span>
-                      <span className="font-mono text-zinc-400 ml-2">({liab.code})</span>
+                      <span className="font-semibold text-[#172554]">{liab.accountName}</span>
+                      <span className="font-mono text-[#64748B] ml-2 text-[12px]">({liab.code})</span>
                     </div>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                    <span className="font-mono font-bold text-[#C2410C]">
                       {formatCurrency(liab.amount)}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="pt-2 flex justify-between text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+              <div className="pt-3 flex justify-between text-[13px] font-semibold text-[#334155]">
                 <span>Total Liabilities:</span>
-                <span className="font-mono">{formatCurrency(balanceSheet.liabilities.totalLiabilities)}</span>
+                <span className="font-mono font-bold text-[#C2410C]">{formatCurrency(balanceSheet.liabilities.totalLiabilities)}</span>
               </div>
             </div>
 
             {/* Equity */}
-            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-              <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
-                Owner&apos;s Equity
+            <div className="pt-4 border-t border-[#E2E8F0]">
+              <h4 className="text-[12px] font-bold text-[#64748B] uppercase tracking-wider mb-2.5">
+                Owner&apos;s Equity & Net Earnings
               </h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800">
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">Owner&apos;s Capital (300100)</span>
-                  <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+              <div className="space-y-2 text-[13px]">
+                <div className="flex justify-between p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+                  <span className="font-semibold text-[#172554]">Owner&apos;s Capital Investment (#300100)</span>
+                  <span className="font-mono font-bold text-[#172554]">
                     {formatCurrency(balanceSheet.equity.ownersCapital)}
                   </span>
                 </div>
-                <div className="flex justify-between p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800">
+                <div className="flex justify-between p-3 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0]">
                   <div>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">Current Period Net Profit</span>
-                    <span className="text-[10px] text-zinc-400 ml-1.5">(from P&L)</span>
+                    <span className="font-semibold text-[#065F46]">Retained Net Earnings</span>
+                    <span className="text-[11px] text-[#047857] ml-2 font-normal">(from Income Statement)</span>
                   </div>
-                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="font-mono font-bold text-[#047857]">
                     {formatCurrency(balanceSheet.equity.currentPeriodProfit)}
                   </span>
                 </div>
               </div>
-              <div className="pt-2 flex justify-between text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                <span>Total Equity:</span>
-                <span className="font-mono">{formatCurrency(balanceSheet.equity.totalEquity)}</span>
+              <div className="pt-3 flex justify-between text-[13px] font-semibold text-[#334155]">
+                <span>Total Owner&apos;s Equity:</span>
+                <span className="font-mono font-bold text-[#047857]">{formatCurrency(balanceSheet.equity.totalEquity)}</span>
               </div>
             </div>
 
             {/* Grand Total */}
-            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center font-bold text-sm">
-              <span>Total Liabilities + Equity:</span>
-              <span className="font-mono text-amber-600 dark:text-amber-400">
+            <div className="pt-4 border-t-2 border-[#172554] flex justify-between items-center font-bold text-[14px]">
+              <span className="text-[#172554]">Total Liabilities + Equity:</span>
+              <span className="font-mono text-base text-[#172554]">
                 {formatCurrency(balanceSheet.liabilities.totalLiabilities + balanceSheet.equity.totalEquity)}
               </span>
             </div>

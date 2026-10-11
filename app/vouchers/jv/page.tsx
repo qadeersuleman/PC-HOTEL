@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
-import { Card, CardContent } from '../../../components/ui/card';
+import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Modal } from '../../../components/ui/modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { useToast } from '../../../components/ui/toast';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { formatCurrency, formatDate, getTodayDateString, round2 } from '../../../lib/utils/formatters';
@@ -21,7 +23,8 @@ interface JVLineForm {
 }
 
 export default function JournalVouchersPage() {
-  const { vouchers, accounts, saveVoucher, cancelVoucher } = useERPStorage();
+  const { vouchers, accounts, saveVoucher } = useERPStorage();
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedJV, setSelectedJV] = useState<Voucher | null>(null);
 
@@ -63,7 +66,10 @@ export default function JournalVouchersPage() {
 
   const handleCreateJV = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isBalanced) return;
+    if (!isBalanced) {
+      toast.error('Unbalanced Journal', 'Total Debits must equal Total Credits before posting.');
+      return;
+    }
 
     const voucherNumber = `JV-2026-00${jvVouchers.length + 1}`;
 
@@ -72,8 +78,8 @@ export default function JournalVouchersPage() {
       return {
         id: `jl-${Date.now()}-${l.id}`,
         accountId: l.accountId,
-        accountCode: acc.code,
-        accountName: acc.name,
+        accountCode: acc?.code || '000000',
+        accountName: acc?.name || 'Account',
         debit: round2(l.debit || 0),
         credit: round2(l.credit || 0),
         description: l.description || description,
@@ -94,78 +100,95 @@ export default function JournalVouchersPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    await saveVoucher(newVoucher);
-    setIsModalOpen(false);
+    try {
+      await saveVoucher(newVoucher);
+      toast.success('Journal Posted', `Voucher ${voucherNumber} posted with ${formatCurrency(totalDebit)} balanced.`);
+      setIsModalOpen(false);
+    } catch {
+      toast.error('Error', 'Failed to save Journal Voucher.');
+    }
   };
 
   return (
     <PageContainer
       title="JV — Journal Vouchers"
-      subtitle="Manual double-entry adjustments, depreciation, accruals, and inter-account transfers"
+      subtitle="Manual double-entry adjustments, depreciation, accruals, and inter-account ledger transfers"
+      breadcrumbs={[
+        { label: 'Vouchers & GL', href: '/accounts/general-ledger' },
+        { label: 'Journal Vouchers (JV)' },
+      ]}
       actions={
         <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-          <Icons.Plus size={14} />
+          <Icons.Plus size={15} />
           <span>New Journal Voucher (JV)</span>
         </Button>
       }
     >
       <Card>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Voucher #</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Ref #</TableHead>
-              <TableHead>Narration / Description</TableHead>
-              <TableHead>Debit Total</TableHead>
-              <TableHead>Credit Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {jvVouchers.length === 0 ? (
+        {jvVouchers.length === 0 ? (
+          <EmptyState
+            icon="FileText"
+            title="No Journal Vouchers Found"
+            description="Create formal balanced debit/credit adjustments and non-cash journal entries."
+            actionLabel="Create Journal Voucher"
+            onAction={() => setIsModalOpen(true)}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
               <tr>
-                <td colSpan={8} className="py-10 text-center text-zinc-400 text-xs">
-                  No journal vouchers created yet.
-                </td>
+                <TableHead>Voucher #</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Reference #</TableHead>
+                <TableHead>Narration / Description</TableHead>
+                <TableHead className="text-right">Debit Total (PKR)</TableHead>
+                <TableHead className="text-right">Credit Total (PKR)</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </tr>
-            ) : (
-              jvVouchers.map((v) => (
+            </TableHeader>
+            <TableBody>
+              {jvVouchers.map((v) => (
                 <TableRow key={v.id}>
-                  <TableCell className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                  <TableCell className="font-mono font-bold text-[#172554] text-[13px]">
                     {v.voucherNumber}
                   </TableCell>
-                  <TableCell className="text-xs">{formatDate(v.date)}</TableCell>
-                  <TableCell className="text-xs font-mono text-zinc-500">{v.referenceNo || '—'}</TableCell>
-                  <TableCell className="text-xs font-medium text-zinc-800 dark:text-zinc-200 max-w-[280px]">
+                  <TableCell className="text-[13px] text-[#64748B] font-mono">{formatDate(v.date)}</TableCell>
+                  <TableCell className="text-[13px] font-mono text-[#64748B]">{v.referenceNo || '—'}</TableCell>
+                  <TableCell className="text-[13px] text-[#334155] max-w-[280px]">
                     {v.description}
                   </TableCell>
-                  <TableCell className="font-mono text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                  <TableCell className="text-right font-mono font-bold text-[#172554] text-[13px] tabular-nums">
                     {formatCurrency(v.amount)}
                   </TableCell>
-                  <TableCell className="font-mono text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                  <TableCell className="text-right font-mono font-bold text-[#172554] text-[13px] tabular-nums">
                     {formatCurrency(v.amount)}
                   </TableCell>
-                  <TableCell>
-                    {v.isPosted ? <Badge variant="success">Posted (Balanced)</Badge> : <Badge variant="outline">Cancelled</Badge>}
+                  <TableCell className="text-center">
+                    {v.isPosted ? (
+                      <Badge variant="success">Balanced ($Dr=Cr$)</Badge>
+                    ) : (
+                      <Badge variant="error">Cancelled</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setSelectedJV(v)}
-                      className="p-1 rounded text-zinc-500 hover:text-emerald-600"
                     >
-                      <Icons.Eye size={16} />
-                    </button>
+                      <Icons.Eye size={13} />
+                      <span>Lines</span>
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
-      {/* View JV Modal */}
+      {/* View JV Detail Modal */}
       {selectedJV && (
         <Modal
           isOpen={true}
@@ -175,8 +198,10 @@ export default function JournalVouchersPage() {
           maxWidth="2xl"
         >
           <div className="space-y-4">
-            <p className="text-xs text-zinc-600 dark:text-zinc-300 italic">{selectedJV.description}</p>
-            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+            <p className="text-[13px] text-[#64748B] italic bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
+              {selectedJV.description}
+            </p>
+            <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
               <Table>
                 <TableHeader>
                   <tr>
@@ -190,11 +215,15 @@ export default function JournalVouchersPage() {
                 <TableBody>
                   {selectedJV.lines.map((l) => (
                     <TableRow key={l.id}>
-                      <TableCell className="font-mono text-xs">{l.accountCode}</TableCell>
-                      <TableCell className="font-semibold text-xs">{l.accountName}</TableCell>
-                      <TableCell className="text-xs text-zinc-500">{l.description || '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{l.debit > 0 ? formatCurrency(l.debit) : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{l.credit > 0 ? formatCurrency(l.credit) : '—'}</TableCell>
+                      <TableCell className="font-mono text-[13px] text-[#172554] font-bold">{l.accountCode}</TableCell>
+                      <TableCell className="font-semibold text-[13px] text-[#334155]">{l.accountName}</TableCell>
+                      <TableCell className="text-[13px] text-[#64748B]">{l.description || '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-[13px] tabular-nums font-semibold text-[#047857]">
+                        {l.debit > 0 ? formatCurrency(l.debit) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-[13px] tabular-nums font-semibold text-[#C2410C]">
+                        {l.credit > 0 ? formatCurrency(l.credit) : '—'}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -220,7 +249,7 @@ export default function JournalVouchersPage() {
         <form onSubmit={handleCreateJV} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Journal Date
               </label>
               <input
@@ -228,11 +257,11 @@ export default function JournalVouchersPage() {
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
                 Reference / Bill #
               </label>
               <input
@@ -240,13 +269,13 @@ export default function JournalVouchersPage() {
                 placeholder="e.g. ADJ-REF-01"
                 value={referenceNo}
                 onChange={(e) => setReferenceNo(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+            <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
               General Narration
             </label>
             <input
@@ -254,15 +283,15 @@ export default function JournalVouchersPage() {
               required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Allocation of kitchen utilities to prep overhead"
-              className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              placeholder="e.g. Allocation of monthly utilities or adjustments"
+              className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             />
           </div>
 
           {/* Dynamic Lines */}
           <div className="space-y-2 pt-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Journal Lines</span>
+              <span className="text-[13px] font-bold text-[#172554]">Journal Debit & Credit Lines</span>
               <Button type="button" variant="outline" size="sm" onClick={addLine}>
                 <Icons.Plus size={13} />
                 <span>Add Line</span>
@@ -271,12 +300,12 @@ export default function JournalVouchersPage() {
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {lines.map((line, idx) => (
-                <div key={line.id} className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-800 text-xs">
+                <div key={line.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs">
                   <div className="flex-1">
                     <select
                       value={line.accountId}
                       onChange={(e) => handleLineChange(idx, 'accountId', e.target.value)}
-                      className="w-full px-2 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                      className="w-full h-10 px-2.5 text-[13px] rounded-lg border border-[#CBD5E1] bg-white text-[#334155] focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
                     >
                       {accounts.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -295,7 +324,7 @@ export default function JournalVouchersPage() {
                         handleLineChange(idx, 'debit', parseFloat(e.target.value) || 0);
                         if (parseFloat(e.target.value) > 0) handleLineChange(idx, 'credit', 0);
                       }}
-                      className="w-full px-2 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-right"
+                      className="w-full h-10 px-2 text-[13px] rounded-lg border border-[#CBD5E1] bg-white font-mono text-right text-[#047857] font-semibold focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
                     />
                   </div>
                   <div className="w-28">
@@ -308,39 +337,43 @@ export default function JournalVouchersPage() {
                         handleLineChange(idx, 'credit', parseFloat(e.target.value) || 0);
                         if (parseFloat(e.target.value) > 0) handleLineChange(idx, 'debit', 0);
                       }}
-                      className="w-full px-2 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-right"
+                      className="w-full h-10 px-2 text-[13px] rounded-lg border border-[#CBD5E1] bg-white font-mono text-right text-[#C2410C] font-semibold focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
                     />
                   </div>
                   <button
                     type="button"
                     disabled={lines.length <= 2}
                     onClick={() => removeLine(idx)}
-                    className="p-1 text-zinc-400 hover:text-rose-600 disabled:opacity-20"
+                    className="p-1.5 text-[#94A3B8] hover:text-[#B91C1C] disabled:opacity-20 transition-colors"
                   >
-                    <Icons.Trash2 size={15} />
+                    <Icons.Trash2 size={16} />
                   </button>
                 </div>
               ))}
             </div>
 
             {/* Validation Balance Bar */}
-            <div className={`p-3 rounded-lg border text-xs flex justify-between items-center ${isBalanced ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-800 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 text-rose-800 dark:text-rose-300'}`}>
+            <div className={`p-3.5 rounded-xl border text-[13px] flex justify-between items-center ${
+              isBalanced
+                ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]'
+                : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
+            }`}>
               <div>
-                <span className="font-semibold">Debits: {formatCurrency(totalDebit)}</span>
-                <span className="mx-2">•</span>
-                <span className="font-semibold">Credits: {formatCurrency(totalCredit)}</span>
+                <span className="font-semibold">Debits: <strong className="font-mono">{formatCurrency(totalDebit)}</strong></span>
+                <span className="mx-2.5 text-[#94A3B8]">|</span>
+                <span className="font-semibold">Credits: <strong className="font-mono">{formatCurrency(totalCredit)}</strong></span>
               </div>
               <div>
                 {isBalanced ? (
                   <Badge variant="success">Balanced ($Dr = Cr$)</Badge>
                 ) : (
-                  <Badge variant="danger">Unbalanced by {formatCurrency(difference)}</Badge>
+                  <Badge variant="error">Unbalanced by {formatCurrency(difference)}</Badge>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#E2E8F0]">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
@@ -353,4 +386,3 @@ export default function JournalVouchersPage() {
     </PageContainer>
   );
 }
-

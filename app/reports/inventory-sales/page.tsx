@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
-import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
+import { Card, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Icons } from '../../../components/ui/icons';
 import { useERPStorage } from '../../../lib/storage/context';
 import { formatCurrency } from '../../../lib/utils/formatters';
@@ -23,84 +23,112 @@ export default function InventorySalesReportsPage() {
   return (
     <PageContainer
       title="Stock & Sales Consumption Reports"
-      subtitle="Analyze inventory turnover, culinary consumption, and food cost ratio metrics"
+      subtitle="Analyze inventory movement velocity, culinary kitchen consumption, and food cost ratio metrics"
+      breadcrumbs={[
+        { label: 'Financial Reports' },
+        { label: 'Stock & Sales Reports' },
+      ]}
       actions={
         <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Icons.Printer size={14} />
+          <Icons.Printer size={15} />
           <span>Print Summary</span>
         </Button>
       }
     >
       {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Total Stock Holding Value</span>
-          <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">
-            {formatCurrency(totalStockValuation)}
-          </p>
-          <span className="text-[11px] text-zinc-400">Current store balance at average cost</span>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Total Stock Holding Value
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#0F766E]">
+              {formatCurrency(totalStockValuation)}
+            </p>
+            <p className="text-[12px] text-[#64748B] mt-1">Current central store asset balance</p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Culinary Food Consumption</span>
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-            {formatCurrency(totalKitchenConsumption)}
-          </p>
-          <span className="text-[11px] text-zinc-400">Total issues dispatched to kitchen & BBQ</span>
-        </Card>
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Culinary Kitchen Consumption
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#C2410C]">
+              {formatCurrency(totalKitchenConsumption)}
+            </p>
+            <p className="text-[12px] text-[#64748B] mt-1">Food ingredients issued to kitchens</p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Food Cost Percentage</span>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            {foodCostRatio}%
-          </p>
-          <span className="text-[11px] text-zinc-400">Benchmark: 30% - 40% optimal for restaurant</span>
-        </Card>
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col justify-between">
+          <span className="text-[12px] text-[#64748B] uppercase tracking-wider font-semibold">
+            Food Cost Percentage (FC%)
+          </span>
+          <div className="mt-2">
+            <p className="text-3xl font-bold font-mono tabular-nums text-[#047857]">
+              {foodCostRatio}%
+            </p>
+            <p className="text-[12px] text-[#64748B] mt-1">Industry standard: 30% – 40% optimal</p>
+          </div>
+        </div>
       </div>
 
       {/* Item Stock Turnover & Availability Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>SKU Inventory Velocity & Stock Summary</CardTitle>
+        <CardHeader className="p-6 border-b border-[#E2E8F0] bg-[#F8FAFC]/50">
+          <CardTitle className="text-base font-bold text-[#172554]">SKU Inventory Velocity & Stock Summary</CardTitle>
+          <p className="text-[13px] text-[#64748B] mt-0.5">Chronological summary of all received, issued, and available warehouse items</p>
         </CardHeader>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>SKU / ID</TableHead>
-              <TableHead>Item Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Opening Qty</TableHead>
-              <TableHead className="text-right">Purchased</TableHead>
-              <TableHead className="text-right">Issued</TableHead>
-              <TableHead className="text-right">In Stock</TableHead>
-              <TableHead className="text-right">Valuation (PKR)</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {stockStatusList.map((item) => (
-              <TableRow key={item.itemId}>
-                <TableCell className="font-mono font-bold text-xs">{item.itemCode}</TableCell>
-                <TableCell className="font-semibold text-xs">{item.itemName}</TableCell>
-                <TableCell className="text-xs">{item.categoryName}</TableCell>
-                <TableCell className="text-right font-mono text-xs">{item.openingQty} {item.unit}</TableCell>
-                <TableCell className="text-right font-mono text-xs text-emerald-600">
-                  +{item.purchasedQty} {item.unit}
-                </TableCell>
-                <TableCell className="text-right font-mono text-xs text-amber-600">
-                  -{item.issuedQty} {item.unit}
-                </TableCell>
-                <TableCell className="text-right font-mono font-bold text-xs text-zinc-900 dark:text-zinc-100">
-                  {item.availableQty} {item.unit}
-                </TableCell>
-                <TableCell className="text-right font-mono font-bold text-xs text-sky-600 dark:text-sky-400">
-                  {formatCurrency(item.stockValue)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {stockStatusList.length === 0 ? (
+          <EmptyState
+            icon="Boxes"
+            title="No Inventory Items Found"
+            description="Register catalog items and receive purchase orders to see stock velocity."
+            actionLabel="View Items"
+            actionHref="/inventory/items"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <tr>
+                <TableHead>SKU / Code</TableHead>
+                <TableHead>Item Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Opening Qty</TableHead>
+                <TableHead className="text-right">Purchased</TableHead>
+                <TableHead className="text-right">Issued</TableHead>
+                <TableHead className="text-right">In Stock</TableHead>
+                <TableHead className="text-right">Valuation (PKR)</TableHead>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {stockStatusList.map((item) => (
+                <TableRow key={item.itemId}>
+                  <TableCell className="font-mono font-bold text-[#172554] text-[13px]">{item.itemCode}</TableCell>
+                  <TableCell className="font-semibold text-[#172554] text-[14px]">{item.itemName}</TableCell>
+                  <TableCell className="text-[13px] text-[#64748B]">{item.categoryName}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#64748B] tabular-nums">
+                    {item.openingQty} {item.unit}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#047857] font-semibold tabular-nums">
+                    +{item.purchasedQty} {item.unit}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-[13px] text-[#C2410C] font-semibold tabular-nums">
+                    -{item.issuedQty} {item.unit}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-bold text-[13px] text-[#172554] tabular-nums">
+                    {item.availableQty} {item.unit}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-bold text-[14px] text-[#0F766E] tabular-nums">
+                    {formatCurrency(item.stockValue)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </Card>
     </PageContainer>
   );
 }
-
