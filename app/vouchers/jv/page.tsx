@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { PageContainer } from '../../../components/layout/page-container';
 import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Modal } from '../../../components/ui/modal';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { useToast } from '../../../components/ui/toast';
 import { Icons } from '../../../components/ui/icons';
@@ -14,375 +12,891 @@ import { useERPStorage } from '../../../lib/storage/context';
 import { formatCurrency, formatDate, getTodayDateString, round2 } from '../../../lib/utils/formatters';
 import { Voucher, JournalLine } from '../../../types/voucher';
 
-interface JVLineForm {
+interface JVRow {
   id: string;
   accountId: string;
-  debit: number;
-  credit: number;
   description: string;
+  reference: string;
+  debit: string;
+  credit: string;
 }
 
-export default function JournalVouchersPage() {
-  const { vouchers, accounts, saveVoucher } = useERPStorage();
+const createBlankJVRow = (id: string): JVRow => ({
+  id,
+  accountId: '',
+  description: '',
+  reference: '',
+  debit: '',
+  credit: '',
+});
+
+function JournalVouchersContent() {
+  const { vouchers, accounts, saveVoucher, cancelVoucher } = useERPStorage();
   const toast = useToast();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedJV, setSelectedJV] = useState<Voucher | null>(null);
 
-  // Form State
+  const jvVouchers = useMemo(() => {
+    return vouchers
+      .filter((v) => v.voucherType === 'JV')
+      .sort((a, b) => b.voucherNumber.localeCompare(a.voucherNumber));
+  }, [vouchers]);
+
+  // Current JV State
+  const [currentVoucherId, setCurrentVoucherId] = useState<string | null>(null);
   const [date, setDate] = useState(getTodayDateString());
-  const [description, setDescription] = useState('Month-end depreciation / expense adjustment');
-  const [referenceNo, setReferenceNo] = useState('');
-
-  const [lines, setLines] = useState<JVLineForm[]>([
-    { id: '1', accountId: accounts[0]?.id || '', debit: 1000, credit: 0, description: 'Debit adjustment' },
-    { id: '2', accountId: accounts[1]?.id || '', debit: 0, credit: 1000, description: 'Credit adjustment' },
+  const [voucherNumber, setVoucherNumber] = useState('');
+  const [allowEditing, setAllowEditing] = useState(true);
+  const [rows, setRows] = useState<JVRow[]>([
+    createBlankJVRow('jv-row-1'),
+    createBlankJVRow('jv-row-2'),
+    createBlankJVRow('jv-row-3'),
+    createBlankJVRow('jv-row-4'),
   ]);
 
-  const jvVouchers = vouchers.filter((v) => v.voucherType === 'JV');
+  // UI state
+  const [isFindModalOpen, setIsFindModalOpen] = useState(false);
+  const [findSearchQuery, setFindSearchQuery] = useState('');
+  const [showHistoryView, setShowHistoryView] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Balance calculation
-  const totalDebit = round2(lines.reduce((s, l) => s + (l.debit || 0), 0));
-  const totalCredit = round2(lines.reduce((s, l) => s + (l.credit || 0), 0));
+  // Input refs for automatic keyboard navigation
+  const rowRefs = useRef<{
+    [key: string]: {
+      account?: HTMLSelectElement | null;
+      description?: HTMLInputElement | null;
+      reference?: HTMLInputElement | null;
+      debit?: HTMLInputElement | null;
+      credit?: HTMLInputElement | null;
+    };
+  }>({});
+
+  const generateNextJVNumber = () => {
+    const nextSeq = jvVouchers.length + 1;
+    return `JV-2026-00${nextSeq}`;
+  };
+
+  useEffect(() => {
+    if (!voucherNumber) {
+      setVoucherNumber(generateNextJVNumber());
+    }
+  }, [jvVouchers.length]);
+
+  // Reset to brand new JV
+  const handleNewVoucher = () => {
+    setCurrentVoucherId(null);
+    setDate(getTodayDateString());
+    setVoucherNumber(`JV-2026-00${jvVouchers.length + 1}`);
+    setAllowEditing(true);
+    setRows([
+      createBlankJVRow(`jv-row-${Date.now()}-1`),
+      createBlankJVRow(`jv-row-${Date.now()}-2`),
+      createBlankJVRow(`jv-row-${Date.now()}-3`),
+      createBlankJVRow(`jv-row-${Date.now()}-4`),
+    ]);
+    toast.info('New Journal Voucher Ready', 'Form reset for new double-entry journal.');
+  };
+
+  // Load a saved JV
+  const loadVoucher = (v: Voucher) => {
+    setCurrentVoucherId(v.id);
+    setVoucherNumber(v.voucherNumber);
+    setDate(v.date);
+    setAllowEditing(false); // Locked by default for safety
+
+    const loadedRows: JVRow[] = v.lines.map((l, idx) => ({
+      id: `jv-loaded-${idx}-${l.id}`,
+      accountId: l.accountId,
+      description: l.description || v.description,
+      reference: v.referenceNo || '',
+      debit: l.debit > 0 ? String(l.debit) : '',
+      credit: l.credit > 0 ? String(l.credit) : '',
+    }));
+
+    while (loadedRows.length < 4) {
+      loadedRows.push(createBlankJVRow(`jv-pad-${loadedRows.length + 1}`));
+    }
+
+    setRows(loadedRows);
+    setIsFindModalOpen(false);
+  };
+
+  // Navigate Back (Previous voucher)
+  const handleBack = () => {
+    if (jvVouchers.length === 0) return;
+    if (!currentVoucherId) {
+      loadVoucher(jvVouchers[0]);
+      return;
+    }
+    const idx = jvVouchers.findIndex((v) => v.id === currentVoucherId);
+    if (idx < jvVouchers.length - 1) {
+      loadVoucher(jvVouchers[idx + 1]);
+    } else {
+      toast.info('First Voucher Reached', 'No older journal vouchers in history.');
+    }
+  };
+
+  // Navigate Next (Newer voucher)
+  const handleNext = () => {
+    if (jvVouchers.length === 0) return;
+    if (!currentVoucherId) return;
+    const idx = jvVouchers.findIndex((v) => v.id === currentVoucherId);
+    if (idx > 0) {
+      loadVoucher(jvVouchers[idx - 1]);
+    } else if (idx === 0) {
+      handleNewVoucher();
+    }
+  };
+
+  // Row Management
+  const handleAddRow = () => {
+    const newId = `jv-row-${Date.now()}-${rows.length + 1}`;
+    setRows((prev) => [...prev, createBlankJVRow(newId)]);
+    setTimeout(() => {
+      rowRefs.current[newId]?.account?.focus();
+    }, 50);
+  };
+
+  const handleDeleteRow = (index: number) => {
+    if (rows.length <= 2) {
+      setRows((prev) => {
+        const copy = [...prev];
+        copy[index] = createBlankJVRow(`jv-row-${Date.now()}`);
+        return copy;
+      });
+      return;
+    }
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRowChange = (index: number, field: keyof JVRow, value: string) => {
+    setRows((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  // Keyboard Navigation on Enter key
+  const handleKeyDown = (
+    e: React.KeyboardEvent,
+    index: number,
+    field: 'account' | 'description' | 'reference' | 'debit' | 'credit'
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const currentRowId = rows[index].id;
+
+      if (field === 'account') {
+        rowRefs.current[currentRowId]?.description?.focus();
+      } else if (field === 'description') {
+        rowRefs.current[currentRowId]?.reference?.focus();
+      } else if (field === 'reference') {
+        rowRefs.current[currentRowId]?.debit?.focus();
+      } else if (field === 'debit') {
+        rowRefs.current[currentRowId]?.credit?.focus();
+      } else if (field === 'credit') {
+        if (index === rows.length - 1) {
+          const newId = `jv-row-${Date.now()}-${rows.length + 1}`;
+          setRows((prev) => [...prev, createBlankJVRow(newId)]);
+          setTimeout(() => {
+            rowRefs.current[newId]?.account?.focus();
+          }, 50);
+        } else {
+          const nextRowId = rows[index + 1]?.id;
+          if (nextRowId) {
+            rowRefs.current[nextRowId]?.account?.focus();
+          }
+        }
+      }
+    }
+  };
+
+  // Global Keyboard Shortcuts (F3 for Find, Ctrl+S for Save)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        setIsFindModalOpen(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveJV();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  });
+
+  // Calculate Debits and Credits
+  const totalDebit = useMemo(() => {
+    return round2(
+      rows.reduce((sum, r) => sum + (parseFloat(r.debit) || 0), 0)
+    );
+  }, [rows]);
+
+  const totalCredit = useMemo(() => {
+    return round2(
+      rows.reduce((sum, r) => sum + (parseFloat(r.credit) || 0), 0)
+    );
+  }, [rows]);
+
   const difference = round2(Math.abs(totalDebit - totalCredit));
   const isBalanced = difference < 0.01 && totalDebit > 0;
 
-  const handleLineChange = (index: number, field: keyof JVLineForm, value: any) => {
-    const updated = [...lines];
-    updated[index] = { ...updated[index], [field]: value };
-    setLines(updated);
-  };
-
-  const addLine = () => {
-    setLines([
-      ...lines,
-      { id: `${Date.now()}-${lines.length}`, accountId: accounts[0]?.id || '', debit: 0, credit: 0, description: '' },
-    ]);
-  };
-
-  const removeLine = (index: number) => {
-    if (lines.length <= 2) return;
-    setLines(lines.filter((_, i) => i !== index));
-  };
-
-  const handleCreateJV = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isBalanced) {
-      toast.error('Unbalanced Journal', 'Total Debits must equal Total Credits before posting.');
+  // Save / Post Journal Voucher
+  const handleSaveJV = async () => {
+    if (!allowEditing) {
+      toast.error('Editing Locked', 'Check "Allow Editing" on top right to save modifications.');
       return;
     }
 
-    const voucherNumber = `JV-2026-00${jvVouchers.length + 1}`;
-
-    const formattedLines: JournalLine[] = lines.map((l) => {
-      const acc = accounts.find((a) => a.id === l.accountId)!;
-      return {
-        id: `jl-${Date.now()}-${l.id}`,
-        accountId: l.accountId,
-        accountCode: acc?.code || '000000',
-        accountName: acc?.name || 'Account',
-        debit: round2(l.debit || 0),
-        credit: round2(l.credit || 0),
-        description: l.description || description,
-      };
+    const validLines = rows.filter((r) => {
+      const dr = parseFloat(r.debit) || 0;
+      const cr = parseFloat(r.credit) || 0;
+      return r.accountId && (dr > 0 || cr > 0);
     });
 
-    const newVoucher: Voucher = {
-      id: `v-jv-${Date.now()}`,
-      voucherNumber,
-      voucherType: 'JV',
-      date,
-      description,
-      referenceNo,
-      amount: totalDebit,
-      lines: formattedLines,
-      isPosted: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (validLines.length < 2) {
+      toast.error('Validation Error', 'Journal voucher requires at least two accounts (debit and credit).');
+      return;
+    }
 
+    if (!isBalanced) {
+      toast.error(
+        'Unbalanced Journal',
+        `Debits (${formatCurrency(totalDebit)}) must equal Credits (${formatCurrency(totalCredit)}). Out by ${formatCurrency(difference)}.`
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
+      const compiledLines: JournalLine[] = validLines.map((r, idx) => {
+        const acc = accounts.find((a) => a.id === r.accountId);
+        const dr = round2(parseFloat(r.debit) || 0);
+        const cr = round2(parseFloat(r.credit) || 0);
+
+        return {
+          id: `jl-jv-${Date.now()}-${idx}`,
+          accountId: r.accountId,
+          accountCode: acc?.code || '000000',
+          accountName: acc?.name || 'Account',
+          debit: dr,
+          credit: cr,
+          description: r.description || 'Journal Voucher Entry',
+        };
+      });
+
+      const newVoucher: Voucher = {
+        id: currentVoucherId || `v-jv-${Date.now()}`,
+        voucherNumber: voucherNumber || generateNextJVNumber(),
+        voucherType: 'JV',
+        date,
+        description:
+          validLines.map((l) => l.description).filter(Boolean).join('; ') ||
+          `Journal Voucher for ${validLines.length} accounts`,
+        referenceNo: validLines.find((l) => l.reference)?.reference || '',
+        amount: totalDebit,
+        lines: compiledLines,
+        isPosted: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       await saveVoucher(newVoucher);
-      toast.success('Journal Posted', `Voucher ${voucherNumber} posted with ${formatCurrency(totalDebit)} balanced.`);
-      setIsModalOpen(false);
-    } catch {
+      setCurrentVoucherId(newVoucher.id);
+      setAllowEditing(false);
+      toast.success(
+        'Journal Voucher Posted',
+        `${newVoucher.voucherNumber} posted with ${formatCurrency(totalDebit)} balanced.`
+      );
+    } catch (err) {
+      console.error(err);
       toast.error('Error', 'Failed to save Journal Voucher.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // Reverse / Cancel JV
+  const handleCancelCurrentJV = async () => {
+    if (!currentVoucherId) return;
+    if (!allowEditing) {
+      toast.error('Action Locked', 'Check "Allow Editing" to cancel or reverse this voucher.');
+      return;
+    }
+
+    if (
+      confirm(
+        `Are you sure you want to cancel and reverse ${voucherNumber}? This will reverse the GL entries.`
+      )
+    ) {
+      try {
+        await cancelVoucher(currentVoucherId);
+        toast.warning('JV Reversed', `${voucherNumber} has been reversed.`);
+        handleNewVoucher();
+      } catch {
+        toast.error('Error', 'Failed to cancel Journal Voucher.');
+      }
+    }
+  };
+
+  const filteredSearchVouchers = useMemo(() => {
+    if (!findSearchQuery.trim()) return jvVouchers;
+    const q = findSearchQuery.toLowerCase();
+    return jvVouchers.filter((v) => {
+      return (
+        v.voucherNumber.toLowerCase().includes(q) ||
+        v.date.includes(q) ||
+        (v.referenceNo && v.referenceNo.toLowerCase().includes(q)) ||
+        (v.description && v.description.toLowerCase().includes(q))
+      );
+    });
+  }, [jvVouchers, findSearchQuery]);
+
+  const currentlyLoadedVoucher = useMemo(() => {
+    return jvVouchers.find((v) => v.id === currentVoucherId);
+  }, [jvVouchers, currentVoucherId]);
+
   return (
     <PageContainer
-      title="JV — Journal Vouchers"
-      subtitle="Manual double-entry adjustments, depreciation, accruals, and inter-account ledger transfers"
+      title="Journal Voucher (JV)"
+      subtitle="Manual double-entry adjustments, depreciation, accruals, and ledger transfers"
       breadcrumbs={[
         { label: 'Vouchers & GL', href: '/accounts/general-ledger' },
-        { label: 'Journal Vouchers (JV)' },
+        { label: 'Journal Voucher (JV)' },
       ]}
-      actions={
-        <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-          <Icons.Plus size={15} />
-          <span>New Journal Voucher (JV)</span>
-        </Button>
-      }
     >
-      <Card>
-        {jvVouchers.length === 0 ? (
-          <EmptyState
-            icon="FileText"
-            title="No Journal Vouchers Found"
-            description="Create formal balanced debit/credit adjustments and non-cash journal entries."
-            actionLabel="Create Journal Voucher"
-            onAction={() => setIsModalOpen(true)}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <tr>
-                <TableHead>Voucher #</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Reference #</TableHead>
-                <TableHead>Narration / Description</TableHead>
-                <TableHead className="text-right">Debit Total (PKR)</TableHead>
-                <TableHead className="text-right">Credit Total (PKR)</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {jvVouchers.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono font-bold text-[#172554] text-[13px]">
-                    {v.voucherNumber}
-                  </TableCell>
-                  <TableCell className="text-[13px] text-[#64748B] font-mono">{formatDate(v.date)}</TableCell>
-                  <TableCell className="text-[13px] font-mono text-[#64748B]">{v.referenceNo || '—'}</TableCell>
-                  <TableCell className="text-[13px] text-[#334155] max-w-[280px]">
-                    {v.description}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-bold text-[#172554] text-[13px] tabular-nums">
-                    {formatCurrency(v.amount)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-bold text-[#172554] text-[13px] tabular-nums">
-                    {formatCurrency(v.amount)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {v.isPosted ? (
-                      <Badge variant="success">Balanced ($Dr=Cr$)</Badge>
-                    ) : (
-                      <Badge variant="error">Cancelled</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedJV(v)}
-                    >
-                      <Icons.Eye size={13} />
-                      <span>Lines</span>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
-
-      {/* View JV Detail Modal */}
-      {selectedJV && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedJV(null)}
-          title={`Journal Voucher: ${selectedJV.voucherNumber}`}
-          description={`Balanced double-entry journal created on ${formatDate(selectedJV.date)}`}
-          maxWidth="2xl"
-        >
-          <div className="space-y-4">
-            <p className="text-[13px] text-[#64748B] italic bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
-              {selectedJV.description}
-            </p>
-            <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <TableHead>Account Code</TableHead>
-                    <TableHead>Account Title</TableHead>
-                    <TableHead>Line Narration</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {selectedJV.lines.map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="font-mono text-[13px] text-[#172554] font-bold">{l.accountCode}</TableCell>
-                      <TableCell className="font-semibold text-[13px] text-[#334155]">{l.accountName}</TableCell>
-                      <TableCell className="text-[13px] text-[#64748B]">{l.description || '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[13px] tabular-nums font-semibold text-[#047857]">
-                        {l.debit > 0 ? formatCurrency(l.debit) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[13px] tabular-nums font-semibold text-[#C2410C]">
-                        {l.credit > 0 ? formatCurrency(l.credit) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+      {/* MAIN DESKTOP VOUCHER CARD (Matches reference image) */}
+      <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-sm overflow-hidden mb-6">
+        {/* Top Header Bar */}
+        <div className="p-5 md:p-6 border-b border-[#CBD5E1] flex flex-wrap items-center justify-between gap-4 bg-white">
+          {/* Left: Icon & Title */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center font-bold">
+              <Icons.Receipt size={22} />
             </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedJV(null)}>
-                Close
-              </Button>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-[#172554] tracking-tight flex items-center gap-2">
+                <span>Journal Voucher</span>
+                {currentVoucherId && (
+                  <Badge variant={currentlyLoadedVoucher?.isPosted ? 'success' : 'error'}>
+                    {currentlyLoadedVoucher?.isPosted ? 'Posted' : 'Cancelled'}
+                  </Badge>
+                )}
+              </h1>
             </div>
           </div>
-        </Modal>
-      )}
 
-      {/* Add JV Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Create Journal Voucher (JV)"
-        description="Double-entry journal. Strictly requires total debits to equal total credits before saving."
-        maxWidth="2xl"
-      >
-        <form onSubmit={handleCreateJV} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
-                Journal Date
+          {/* Right: Date, JV No, Allow Editing */}
+          <div className="flex flex-wrap items-center gap-3 md:gap-4">
+            {/* Date Field */}
+            <div className="flex items-center gap-2">
+              <label className="text-[13px] font-semibold text-[#172554] flex items-center gap-1 whitespace-nowrap">
+                <Icons.Clock size={14} className="text-[#64748B]" />
+                <span>Date</span>
               </label>
               <input
                 type="date"
-                required
+                disabled={!allowEditing}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
+                className="h-10 px-3 text-[14px] rounded-xl border border-[#CBD5E1] bg-white text-[#172554] font-medium focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] disabled:bg-[#F1F5F9] disabled:text-[#64748B]"
               />
             </div>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
-                Reference / Bill #
+
+            {/* JV No Field */}
+            <div className="flex items-center gap-2">
+              <label className="text-[13px] font-semibold text-[#172554] flex items-center gap-1 whitespace-nowrap">
+                <Icons.Receipt size={14} className="text-[#64748B]" />
+                <span>JV No</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. ADJ-REF-01"
-                value={referenceNo}
-                onChange={(e) => setReferenceNo(e.target.value)}
-                className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
+                disabled={!allowEditing}
+                value={voucherNumber}
+                onChange={(e) => setVoucherNumber(e.target.value)}
+                placeholder="JV-2026-001"
+                className="h-10 w-36 px-3 text-[14px] rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-[#172554] font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] disabled:bg-[#F1F5F9]"
               />
             </div>
+
+            {/* Allow Editing Checkbox */}
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[#172554] cursor-pointer select-none bg-[#F8FAFC] border border-[#CBD5E1] px-3 py-2 rounded-xl hover:bg-[#F1F5F9] transition-colors">
+              <input
+                type="checkbox"
+                checked={allowEditing}
+                onChange={(e) => setAllowEditing(e.target.checked)}
+                className="w-4 h-4 rounded text-[#0F766E] focus:ring-[#0F766E]"
+              />
+              <span className="flex items-center gap-1">
+                {allowEditing ? '🔓' : '🔒'} Allow Editing
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Direct Interactive Grid */}
+        <div className="p-5 md:p-6">
+          <div className="border border-[#CBD5E1] rounded-xl overflow-x-auto shadow-sm">
+            <table className="w-full text-left border-collapse min-w-[760px]">
+              <thead>
+                <tr className="bg-[#F1F5F9] border-b border-[#CBD5E1] text-[#172554] text-[13px] font-bold">
+                  <th className="py-3 px-3 w-12 text-center border-r border-[#CBD5E1]">#</th>
+                  <th className="py-3 px-3 w-[30%] border-r border-[#CBD5E1]">AcName (Account Head)</th>
+                  <th className="py-3 px-3 w-[28%] border-r border-[#CBD5E1]">Description</th>
+                  <th className="py-3 px-3 w-[14%] border-r border-[#CBD5E1]">Reference</th>
+                  <th className="py-3 px-3 w-[13%] text-right border-r border-[#CBD5E1]">Debit (PKR)</th>
+                  <th className="py-3 px-3 w-[13%] text-right border-r border-[#CBD5E1]">Credit (PKR)</th>
+                  <th className="py-3 px-2 w-10 text-center">Del</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0]">
+                {rows.map((row, index) => {
+                  if (!rowRefs.current[row.id]) {
+                    rowRefs.current[row.id] = {};
+                  }
+                  return (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-[#F8FAFC]/80 transition-colors group focus-within:bg-[#EFF6FF]/40"
+                    >
+                      <td className="py-2.5 px-3 text-center text-[13px] font-mono text-[#64748B] border-r border-[#E2E8F0] select-none">
+                        {index + 1}
+                      </td>
+
+                      {/* Account Selector */}
+                      <td className="py-1 px-2 border-r border-[#E2E8F0]">
+                        <select
+                          ref={(el) => {
+                            if (rowRefs.current[row.id]) rowRefs.current[row.id].account = el;
+                          }}
+                          disabled={!allowEditing}
+                          value={row.accountId}
+                          onChange={(e) => handleRowChange(index, 'accountId', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'account')}
+                          className="w-full h-10 px-2.5 text-[14px] rounded-lg border border-transparent hover:border-[#CBD5E1] focus:border-[#0F766E] focus:bg-white bg-transparent text-[#172554] font-medium focus:outline-none focus:ring-1 focus:ring-[#0F766E] transition-all disabled:text-[#64748B]"
+                        >
+                          <option value="">-- Choose Account Head --</option>
+                          <optgroup label="Assets & Bank Accounts">
+                            {accounts
+                              .filter((a) => a.category === 'ASSET')
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  [{a.code}] {a.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                          <optgroup label="Liabilities & Payables">
+                            {accounts
+                              .filter((a) => a.category === 'LIABILITY')
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  [{a.code}] {a.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                          <optgroup label="Revenue & Expenses">
+                            {accounts
+                              .filter((a) => a.category === 'REVENUE' || a.category === 'EXPENSE')
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  [{a.code}] {a.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                          <optgroup label="Equity">
+                            {accounts
+                              .filter((a) => a.category === 'EQUITY')
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  [{a.code}] {a.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        </select>
+                      </td>
+
+                      {/* Description */}
+                      <td className="py-1 px-2 border-r border-[#E2E8F0]">
+                        <input
+                          ref={(el) => {
+                            if (rowRefs.current[row.id]) rowRefs.current[row.id].description = el;
+                          }}
+                          type="text"
+                          disabled={!allowEditing}
+                          value={row.description}
+                          placeholder="Narration or reason..."
+                          onChange={(e) => handleRowChange(index, 'description', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'description')}
+                          className="w-full h-10 px-2.5 text-[14px] rounded-lg border border-transparent hover:border-[#CBD5E1] focus:border-[#0F766E] focus:bg-white bg-transparent text-[#334155] focus:outline-none focus:ring-1 focus:ring-[#0F766E] transition-all disabled:text-[#64748B]"
+                        />
+                      </td>
+
+                      {/* Reference */}
+                      <td className="py-1 px-2 border-r border-[#E2E8F0]">
+                        <input
+                          ref={(el) => {
+                            if (rowRefs.current[row.id]) rowRefs.current[row.id].reference = el;
+                          }}
+                          type="text"
+                          disabled={!allowEditing}
+                          value={row.reference}
+                          placeholder="Ref / Bill #"
+                          onChange={(e) => handleRowChange(index, 'reference', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'reference')}
+                          className="w-full h-10 px-2.5 text-[14px] font-mono rounded-lg border border-transparent hover:border-[#CBD5E1] focus:border-[#0F766E] focus:bg-white bg-transparent text-[#334155] focus:outline-none focus:ring-1 focus:ring-[#0F766E] transition-all disabled:text-[#64748B]"
+                        />
+                      </td>
+
+                      {/* Debit */}
+                      <td className="py-1 px-2 border-r border-[#E2E8F0]">
+                        <input
+                          ref={(el) => {
+                            if (rowRefs.current[row.id]) rowRefs.current[row.id].debit = el;
+                          }}
+                          type="number"
+                          step="any"
+                          disabled={!allowEditing}
+                          value={row.debit}
+                          placeholder="0.00"
+                          onChange={(e) => handleRowChange(index, 'debit', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'debit')}
+                          className="w-full h-10 px-2.5 text-[14px] text-right font-mono font-bold rounded-lg border border-transparent hover:border-[#CBD5E1] focus:border-[#0F766E] focus:bg-white bg-transparent text-[#172554] focus:outline-none focus:ring-1 focus:ring-[#0F766E] transition-all tabular-nums disabled:text-[#64748B]"
+                        />
+                      </td>
+
+                      {/* Credit */}
+                      <td className="py-1 px-2 border-r border-[#E2E8F0]">
+                        <input
+                          ref={(el) => {
+                            if (rowRefs.current[row.id]) rowRefs.current[row.id].credit = el;
+                          }}
+                          type="number"
+                          step="any"
+                          disabled={!allowEditing}
+                          value={row.credit}
+                          placeholder="0.00"
+                          onChange={(e) => handleRowChange(index, 'credit', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'credit')}
+                          className="w-full h-10 px-2.5 text-[14px] text-right font-mono font-bold rounded-lg border border-transparent hover:border-[#CBD5E1] focus:border-[#0F766E] focus:bg-white bg-transparent text-[#172554] focus:outline-none focus:ring-1 focus:ring-[#0F766E] transition-all tabular-nums disabled:text-[#64748B]"
+                        />
+                      </td>
+
+                      {/* Delete */}
+                      <td className="py-1 px-2 text-center">
+                        <button
+                          type="button"
+                          disabled={!allowEditing}
+                          onClick={() => handleDeleteRow(index)}
+                          title="Delete row"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#94A3B8] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors disabled:opacity-40"
+                        >
+                          <Icons.Trash size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              {/* Summary Totals Row */}
+              <tfoot>
+                <tr className="bg-[#F8FAFC] border-t-2 border-[#CBD5E1] text-[#172554] font-bold">
+                  <td colSpan={4} className="py-3 px-4 text-left border-r border-[#CBD5E1]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] tracking-wide text-[#334155] uppercase font-semibold">
+                        Total Double-Entry Journal
+                      </span>
+                      {isBalanced ? (
+                        <span className="text-[12px] font-bold text-[#047857] bg-[#ECFDF5] px-2.5 py-1 rounded-md">
+                          ✓ Perfectly Balanced (0.00 Difference)
+                        </span>
+                      ) : (
+                        <span className="text-[12px] font-bold text-[#B91C1C] bg-[#FEF2F2] px-2.5 py-1 rounded-md">
+                          ⚠ Out of Balance by {formatCurrency(difference)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-[15px] text-[#172554] border-r border-[#CBD5E1] tabular-nums">
+                    {formatCurrency(totalDebit)}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-[15px] text-[#172554] border-r border-[#CBD5E1] tabular-nums">
+                    {formatCurrency(totalCredit)}
+                  </td>
+                  <td className="py-3 px-2 text-center bg-[#F1F5F9]"></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-semibold text-[#172554] mb-1.5">
-              General Narration
-            </label>
+          {/* Quick Add Row Button */}
+          {allowEditing && (
+            <div className="mt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#0F766E] hover:text-[#115E59] py-1.5 px-3 rounded-lg hover:bg-[#0F766E]/10 transition-colors"
+              >
+                <Icons.Plus size={16} />
+                <span>Add Row (Press Enter on Credit to auto-add)</span>
+              </button>
+              <div className="text-[12px] text-[#64748B] flex items-center gap-3">
+                <span>Tip: Press <strong>Enter</strong> to jump through fields & create new rows</span>
+                <span>•</span>
+                <span>Press <strong>F3</strong> to find vouchers</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BOTTOM ACTION BUTTONS TOOLBAR (Exactly matching screenshot) */}
+        <div className="p-4 md:p-5 bg-white border-t border-[#CBD5E1] flex flex-wrap items-center justify-between gap-3">
+          {/* Left Buttons: View All & Find Voucher */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowHistoryView(!showHistoryView)}
+              className="h-11 px-5 rounded-xl bg-[#0284C7] hover:bg-[#0369A1] text-white font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98]"
+            >
+              <Icons.Eye size={17} />
+              <span>{showHistoryView ? 'Hide List' : 'View All'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsFindModalOpen(true)}
+              className="h-11 px-5 rounded-xl bg-[#06B6D4] hover:bg-[#0891B2] text-white font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98]"
+            >
+              <Icons.Search size={16} />
+              <span>Find Voucher (F3)</span>
+            </button>
+          </div>
+
+          {/* Center Navigation Buttons: Back & Next */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={jvVouchers.length === 0}
+              className="h-11 px-5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-white font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              <Icons.ArrowLeft size={16} />
+              <span>Back</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={jvVouchers.length === 0}
+              className="h-11 px-5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              <span>Next</span>
+              <Icons.ArrowRight size={16} />
+            </button>
+          </div>
+
+          {/* Right Action Buttons: New, Delete, Save */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleNewVoucher}
+              className="h-11 px-5 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#CBD5E1] text-[#1E293B] font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98]"
+            >
+              <span>New +</span>
+            </button>
+
+            {currentVoucherId && allowEditing && (
+              <button
+                type="button"
+                onClick={handleCancelCurrentJV}
+                className="h-11 px-4 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98]"
+              >
+                <Icons.Trash size={16} />
+                <span>Delete</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isSubmitting || !allowEditing || !isBalanced}
+              onClick={handleSaveJV}
+              className="h-11 px-6 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-bold text-[14px] shadow-sm flex items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              <Icons.Save size={17} />
+              <span>{isSubmitting ? 'Posting...' : 'Save'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ALL SAVED JV LIST */}
+      {showHistoryView && (
+        <Card className="mb-6 animate-in fade-in duration-200">
+          <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between">
+            <h2 className="text-base font-bold text-[#172554] flex items-center gap-2">
+              <Icons.Clock size={16} className="text-[#0F766E]" />
+              <span>All Recorded Journal Vouchers ({jvVouchers.length})</span>
+            </h2>
+            <button
+              onClick={() => setShowHistoryView(false)}
+              className="text-xs font-semibold text-[#64748B] hover:text-[#172554]"
+            >
+              Close List ✕
+            </button>
+          </div>
+          {jvVouchers.length === 0 ? (
+            <EmptyState
+              icon="FileText"
+              title="No Journal Vouchers Yet"
+              description="Create balanced double-entry adjustments and non-cash journal entries above."
+              actionLabel="Create First JV"
+              onAction={handleNewVoucher}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#172554] font-semibold">
+                    <th className="py-3 px-4">Voucher #</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Reference</th>
+                    <th className="py-3 px-4 text-right">Debit (PKR)</th>
+                    <th className="py-3 px-4 text-right">Credit (PKR)</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E2E8F0]">
+                  {jvVouchers.map((v) => (
+                    <tr
+                      key={v.id}
+                      className={`hover:bg-[#F8FAFC] cursor-pointer transition-colors ${
+                        v.id === currentVoucherId ? 'bg-[#0F766E]/5 font-medium' : ''
+                      }`}
+                      onClick={() => loadVoucher(v)}
+                    >
+                      <td className="py-3 px-4 font-mono font-bold text-[#172554]">
+                        {v.voucherNumber}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[#64748B]">{formatDate(v.date)}</td>
+                      <td className="py-3 px-4 text-[#334155] max-w-[280px] truncate">
+                        {v.description}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[#64748B]">{v.referenceNo || '—'}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-[#172554] tabular-nums">
+                        {formatCurrency(v.amount)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-[#172554] tabular-nums">
+                        {formatCurrency(v.amount)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {v.isPosted ? (
+                          <Badge variant="success">Posted to GL</Badge>
+                        ) : (
+                          <Badge variant="error">Cancelled</Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadVoucher(v);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-[#0F766E]/10 hover:bg-[#0F766E]/20 text-[#0F766E] font-semibold text-xs transition-colors"
+                        >
+                          Load
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* FIND VOUCHER MODAL (F3) */}
+      <Modal
+        isOpen={isFindModalOpen}
+        onClose={() => setIsFindModalOpen(false)}
+        title="Find Journal Voucher (F3)"
+        description="Search past journal vouchers by number, date, or narration to view or edit."
+      >
+        <div className="space-y-4">
+          <div className="relative">
             <input
               type="text"
-              required
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Allocation of monthly utilities or adjustments"
-              className="w-full h-11 px-3 text-[14px] rounded-xl border border-[#E2E8F0] bg-white text-[#334155] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
+              autoFocus
+              placeholder="Search voucher # or description..."
+              value={findSearchQuery}
+              onChange={(e) => setFindSearchQuery(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 text-[14px] rounded-xl border border-[#CBD5E1] bg-white text-[#172554] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E]"
             />
+            <div className="absolute left-3 top-3 text-[#94A3B8]">
+              <Icons.Search size={18} />
+            </div>
           </div>
 
-          {/* Dynamic Lines */}
-          <div className="space-y-2 pt-2">
-            <div className="flex justify-between items-center">
-              <span className="text-[13px] font-bold text-[#172554]">Journal Debit & Credit Lines</span>
-              <Button type="button" variant="outline" size="sm" onClick={addLine}>
-                <Icons.Plus size={13} />
-                <span>Add Line</span>
-              </Button>
-            </div>
-
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {lines.map((line, idx) => (
-                <div key={line.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs">
-                  <div className="flex-1">
-                    <select
-                      value={line.accountId}
-                      onChange={(e) => handleLineChange(idx, 'accountId', e.target.value)}
-                      className="w-full h-10 px-2.5 text-[13px] rounded-lg border border-[#CBD5E1] bg-white text-[#334155] focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
-                    >
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name} ({a.category})
-                        </option>
-                      ))}
-                    </select>
+          <div className="max-h-[340px] overflow-y-auto divide-y divide-[#E2E8F0] border border-[#E2E8F0] rounded-xl">
+            {filteredSearchVouchers.length === 0 ? (
+              <div className="p-8 text-center text-[13px] text-[#64748B]">
+                No matching vouchers found for &quot;{findSearchQuery}&quot;.
+              </div>
+            ) : (
+              filteredSearchVouchers.map((v) => (
+                <div
+                  key={v.id}
+                  onClick={() => loadVoucher(v)}
+                  className="p-3 hover:bg-[#F8FAFC] cursor-pointer flex items-center justify-between transition-colors"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[#172554] text-[14px]">
+                        {v.voucherNumber}
+                      </span>
+                      <span className="text-[12px] text-[#64748B] font-mono">
+                        {formatDate(v.date)}
+                      </span>
+                      {!v.isPosted && <Badge variant="error">Cancelled</Badge>}
+                    </div>
+                    <div className="text-[13px] text-[#334155] mt-0.5 truncate max-w-[320px]">
+                      {v.description}
+                    </div>
                   </div>
-                  <div className="w-28">
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Debit"
-                      value={line.debit || ''}
-                      onChange={(e) => {
-                        handleLineChange(idx, 'debit', parseFloat(e.target.value) || 0);
-                        if (parseFloat(e.target.value) > 0) handleLineChange(idx, 'credit', 0);
-                      }}
-                      className="w-full h-10 px-2 text-[13px] rounded-lg border border-[#CBD5E1] bg-white font-mono text-right text-[#047857] font-semibold focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
-                    />
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-[#172554] text-[14px]">
+                      {formatCurrency(v.amount)}
+                    </div>
+                    <span className="text-[11px] text-[#0F766E] font-semibold">Click to Load →</span>
                   </div>
-                  <div className="w-28">
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Credit"
-                      value={line.credit || ''}
-                      onChange={(e) => {
-                        handleLineChange(idx, 'credit', parseFloat(e.target.value) || 0);
-                        if (parseFloat(e.target.value) > 0) handleLineChange(idx, 'debit', 0);
-                      }}
-                      className="w-full h-10 px-2 text-[13px] rounded-lg border border-[#CBD5E1] bg-white font-mono text-right text-[#C2410C] font-semibold focus:outline-none focus:ring-1 focus:ring-[#0F766E]"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={lines.length <= 2}
-                    onClick={() => removeLine(idx)}
-                    className="p-1.5 text-[#94A3B8] hover:text-[#B91C1C] disabled:opacity-20 transition-colors"
-                  >
-                    <Icons.Trash2 size={16} />
-                  </button>
                 </div>
-              ))}
-            </div>
-
-            {/* Validation Balance Bar */}
-            <div className={`p-3.5 rounded-xl border text-[13px] flex justify-between items-center ${
-              isBalanced
-                ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]'
-                : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
-            }`}>
-              <div>
-                <span className="font-semibold">Debits: <strong className="font-mono">{formatCurrency(totalDebit)}</strong></span>
-                <span className="mx-2.5 text-[#94A3B8]">|</span>
-                <span className="font-semibold">Credits: <strong className="font-mono">{formatCurrency(totalCredit)}</strong></span>
-              </div>
-              <div>
-                {isBalanced ? (
-                  <Badge variant="success">Balanced ($Dr = Cr$)</Badge>
-                ) : (
-                  <Badge variant="error">Unbalanced by {formatCurrency(difference)}</Badge>
-                )}
-              </div>
-            </div>
+              ))
+            )}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#E2E8F0]">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsFindModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-[13px] font-semibold text-[#64748B] hover:bg-[#F1F5F9]"
+            >
               Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm" disabled={!isBalanced}>
-              Save & Post Journal
-            </Button>
+            </button>
           </div>
-        </form>
+        </div>
       </Modal>
     </PageContainer>
+  );
+}
+
+export default function JournalVouchersPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-[14px] text-[#64748B]">Loading Journal Vouchers...</div>}>
+      <JournalVouchersContent />
+    </Suspense>
   );
 }
